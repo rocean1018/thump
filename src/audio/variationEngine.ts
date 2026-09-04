@@ -14,12 +14,15 @@ const BASE_PITCH_RANGE: Record<Instrument, [number, number]> = {
   snare: [175, 235],
 };
 
-// Reference decay/attack ranges used to map measured seconds into the 0..1 creative scale.
-const REF_SCALE: Record<Instrument, { attackMax: number; decayMax: number }> = {
-  '808': { attackMax: 0.04, decayMax: 3 },
-  kick: { attackMax: 0.02, decayMax: 0.6 },
-  hihat: { attackMax: 0.01, decayMax: 0.7 },
-  snare: { attackMax: 0.015, decayMax: 0.5 },
+// Reference decay/attack ranges used to map measured seconds into the 0..1 creative
+// scale. decayExponent inverts each engine's decay easing curve (see hihat.ts /
+// snare.ts) so a reference's measured decay lands on the param value that actually
+// reproduces that length, not the pre-curve linear guess.
+const REF_SCALE: Record<Instrument, { attackMax: number; decayMax: number; decayExponent: number }> = {
+  '808': { attackMax: 0.04, decayMax: 3, decayExponent: 1 },
+  kick: { attackMax: 0.02, decayMax: 0.6, decayExponent: 1 },
+  hihat: { attackMax: 0.01, decayMax: 0.55, decayExponent: 3 },
+  snare: { attackMax: 0.015, decayMax: 0.42, decayExponent: 2 },
 };
 
 const RECIPE_FACTORY = {
@@ -64,7 +67,8 @@ export function computeCenter(
     const blend = 0.45; // reference nudges the center; doesn't fully override intent
 
     const refAttack = clamp(1 - reference.attackSec / scale.attackMax, 0, 1);
-    const refDecay = clamp(reference.decaySec / scale.decayMax, 0, 1);
+    const refDecayLinear = clamp(reference.decaySec / scale.decayMax, 0, 1);
+    const refDecay = Math.pow(refDecayLinear, 1 / scale.decayExponent);
     // Map spectral centroid ~500Hz..9000Hz to 0..1 brightness.
     const refTone = clamp((reference.spectralCentroidHz - 500) / (9000 - 500), 0, 1);
 
@@ -93,7 +97,19 @@ export function computeCenter(
   return { params, basePitchHz };
 }
 
-const VARIATION_JITTER = 0.16;
+// Each of the 3 slots is deliberately pulled toward a different corner of the
+// sound space — tighter/darker, centered, or looser/brighter — so the three
+// results read as genuinely different takes, not noise around one point.
+// Random jitter is layered on top per-slot so repeated regenerations don't just
+// reproduce the same three archetypes.
+const SLOT_BIAS: { attack: number; decay: number; punch: number; tone: number; distortion: number; pitchSemi: number }[] = [
+  { attack: -0.16, decay: -0.22, punch: 0.14, tone: -0.16, distortion: -0.05, pitchSemi: -2.2 },
+  { attack: 0, decay: 0, punch: 0, tone: 0, distortion: 0, pitchSemi: 0 },
+  { attack: 0.14, decay: 0.26, punch: -0.1, tone: 0.18, distortion: 0.1, pitchSemi: 2.6 },
+];
+
+const JITTER = 0.14;
+const PITCH_JITTER_SEMITONES = 1.8;
 
 /** Produces 3 distinct-but-related recipes around a center point, seeded for reproducibility. */
 export function generateVariations(
@@ -106,21 +122,29 @@ export function generateVariations(
   const factory = RECIPE_FACTORY[instrument];
   const rng = mulberry32(regenSeed);
 
+  // Scales how far the biased slots spread apart this generation, so back-to-back
+  // regenerations don't all feel identically "wide."
+  const spreadScale = randRange(rng, 0.75, 1.35);
+  const pitchSpreadScale = randRange(rng, 0.7, 1.5);
+
   return [0, 1, 2].map((i) => {
     const variationSeed = Math.floor(rng() * 2 ** 31) ^ (regenSeed + i * 7919);
     const vRng = mulberry32(variationSeed);
-    const jitter = (key: keyof CreativeParams) =>
-      clamp(center.params[key] + randRange(vRng, -VARIATION_JITTER, VARIATION_JITTER), 0, 1);
+    const bias = SLOT_BIAS[i];
+
+    const jitter = (key: keyof CreativeParams, biasValue: number) =>
+      clamp(center.params[key] + biasValue * spreadScale + randRange(vRng, -JITTER, JITTER), 0, 1);
 
     const params: CreativeParams = {
-      attack: jitter('attack'),
-      decay: jitter('decay'),
-      punch: jitter('punch'),
-      tone: jitter('tone'),
-      distortion: clamp(center.params.distortion + randRange(vRng, -VARIATION_JITTER * 0.6, VARIATION_JITTER * 0.6), 0, 1),
+      attack: jitter('attack', bias.attack),
+      decay: jitter('decay', bias.decay),
+      punch: jitter('punch', bias.punch),
+      tone: jitter('tone', bias.tone),
+      distortion: jitter('distortion', bias.distortion * 0.7),
     };
-    const pitchJitter = randRange(vRng, -0.6, 0.6); // semitone-ish jitter for variety
-    const basePitchHz = center.basePitchHz * Math.pow(2, pitchJitter / 12);
+
+    const pitchSemitones = bias.pitchSemi * pitchSpreadScale + randRange(vRng, -PITCH_JITTER_SEMITONES, PITCH_JITTER_SEMITONES);
+    const basePitchHz = center.basePitchHz * Math.pow(2, pitchSemitones / 12);
 
     return factory(variationSeed, basePitchHz, params);
   });
