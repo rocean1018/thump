@@ -5,11 +5,13 @@ import { applyAD, lerp, makeDistortion, makeGritBlend, makeNoiseBuffer, noiseSou
 /**
  * Trap snares are snap-first: a short, bright noise crack carries the sound,
  * with only a thin tonal body underneath — not the long, warm "boom-bap" thump
- * of a full acoustic-style snare. A quadratic ease keeps the default short.
+ * of a full acoustic-style snare. Measuring a reference kit's closed/tight
+ * snares showed a full decay (peak to -40dB) mostly landing around 45-90ms —
+ * tighter than earlier assumed — so the default sits closer to that now.
  */
 function snareDecaySec(decayParam: number): number {
-  const eased = decayParam * decayParam;
-  return lerp(0.045, 0.42, eased);
+  const eased = Math.pow(decayParam, 2.3);
+  return lerp(0.03, 0.32, eased);
 }
 
 /** Short tonal body (the "shell") plus a dominant bandpassed noise "snap". */
@@ -46,11 +48,11 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   const noise = noiseSource(ctx, noiseBuf);
   const bandpass = ctx.createBiquadFilter();
   bandpass.type = 'bandpass';
-  bandpass.frequency.value = lerp(2200, 8200, params.tone);
+  bandpass.frequency.value = lerp(1800, 6500, params.tone);
   bandpass.Q.value = resonanceToQ(params.resonance, 0.5, 12);
   const highpass = ctx.createBiquadFilter();
   highpass.type = 'highpass';
-  highpass.frequency.value = lerp(1100, 3200, params.tone);
+  highpass.frequency.value = lerp(900, 2600, params.tone);
   const noiseGain = ctx.createGain();
   noise.connect(bandpass);
   bandpass.connect(highpass);

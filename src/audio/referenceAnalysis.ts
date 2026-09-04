@@ -38,31 +38,49 @@ function rmsEnvelope(mono: Float32Array, sampleRate: number, frameMs = 5): { tim
   return { times, values };
 }
 
-/** Time-domain autocorrelation pitch detection — good enough for percussive fundamentals. */
+/**
+ * Time-domain pitch detection via normalized cross-correlation (NCC).
+ *
+ * Raw (unnormalized) autocorrelation is biased toward the shortest lag tested
+ * for any smooth/band-limited signal — adjacent samples always look alike —
+ * so it tends to just return `minLag` regardless of the actual pitch period.
+ * Verified this against a real drum-kit reference: unnormalized correlation
+ * consistently reported ~1200Hz "fundamentals" for 808s that were actually
+ * 30-45Hz. Normalizing by each compared segment's energy removes that bias.
+ */
 function detectFundamental(mono: Float32Array, sampleRate: number, startSample: number): number | null {
-  const frameSize = 2048;
+  const frameSize = 4096;
   const end = Math.min(mono.length, startSample + frameSize);
   const frame = mono.subarray(startSample, end);
-  if (frame.length < 512) return null;
+  if (frame.length < 1024) return null;
 
   const minHz = 25;
-  const maxHz = 1200;
+  const maxHz = 400; // drum fundamentals live well below this
   const maxLag = Math.floor(sampleRate / minHz);
   const minLag = Math.floor(sampleRate / maxHz);
 
   let bestLag = -1;
-  let bestCorr = 0;
+  let bestScore = 0;
   for (let lag = minLag; lag <= Math.min(maxLag, frame.length - 1); lag++) {
     let corr = 0;
+    let e1 = 0;
+    let e2 = 0;
     for (let i = 0; i < frame.length - lag; i++) {
       corr += frame[i] * frame[i + lag];
+      e1 += frame[i] * frame[i];
+      e2 += frame[i + lag] * frame[i + lag];
     }
-    if (corr > bestCorr) {
-      bestCorr = corr;
+    const denom = Math.sqrt(e1 * e2);
+    const score = denom > 1e-9 ? corr / denom : 0;
+    if (score > bestScore) {
+      bestScore = score;
       bestLag = lag;
     }
   }
-  if (bestLag <= 0) return null;
+  // Require a reasonably strong periodic match — noise-dominated sounds
+  // (hi-hats, snares) genuinely have no clear fundamental, and should report
+  // none rather than a spurious low-confidence one.
+  if (bestLag <= 0 || bestScore < 0.35) return null;
   return sampleRate / bestLag;
 }
 
@@ -124,7 +142,11 @@ export function analyzeReference(buffer: AudioBuffer, fileName: string): Referen
   const decaySec = Math.max(0.02, (times[decayIdx] ?? buffer.duration) - attackSec);
 
   const peakSample = Math.floor((times[peakIdx] ?? 0) * sampleRate);
-  const fundamentalHz = detectFundamental(mono, sampleRate, peakSample);
+  // Sample a bit past the peak for pitch detection — right at the peak, a
+  // broadband click/transient dominates and swamps the periodic signal the
+  // fundamental-detector is looking for.
+  const pitchSample = Math.min(mono.length - 2048, peakSample + Math.floor(sampleRate * 0.08));
+  const fundamentalHz = detectFundamental(mono, sampleRate, Math.max(0, pitchSample));
   const centroidHz = spectralCentroid(mono, sampleRate, peakSample);
 
   let peakLevel = 0;

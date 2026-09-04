@@ -3,6 +3,7 @@ import { mulberry32, randRange } from '../rng';
 import {
   applyAD,
   applyPitchGlide,
+  applyPunchDecay,
   clamp,
   lerp,
   makeDistortion,
@@ -12,6 +13,15 @@ import {
   resonanceToQ,
 } from './common';
 
+// A reference kit's kicks mostly fully decayed within ~0.05-0.19s (a few
+// outliers ran much longer — essentially kick+808 combos). A mild ease keeps
+// the default in that typical range while still letting the slider reach a
+// genuinely long "boomy" kick at the top end.
+function kickTailDecaySec(decayParam: number, maxSec: number): number {
+  const eased = Math.pow(decayParam, 1.7);
+  return lerp(0.035, maxSec, eased);
+}
+
 /** Kick: like the 808 but shorter, punchier, with a stronger click and shorter tail. */
 export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): void {
   const { params, basePitchHz, durationSec } = recipe;
@@ -19,7 +29,11 @@ export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): v
   const t0 = 0.001;
 
   const attackSec = lerp(0.0008, 0.02, params.attack);
-  const decaySec = lerp(0.08, clamp(durationSec - attackSec - 0.03, 0.1, 0.6), params.decay);
+  // Same two-stage shape as the 808 (see applyPunchDecay), just faster/deeper —
+  // kicks punch harder and settle lower before their (much shorter) tail.
+  const punchDecaySec = lerp(0.016, 0.003, params.punch) * randRange(rng, 0.85, 1.15);
+  const sustainFrac = lerp(0.32, 0.15, params.punch);
+  const tailDecaySec = kickTailDecaySec(params.decay, clamp(durationSec - attackSec - 0.03, 0.1, 0.6));
   const glideAmount = lerp(2, 7, params.punch) * randRange(rng, 0.9, 1.1);
   const glideSec = lerp(0.01, 0.06, 1 - params.punch * 0.5) * randRange(rng, 0.85, 1.15);
 
@@ -43,29 +57,31 @@ export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): v
   body.connect(bodyGain);
   bodyGain.connect(lowpass);
   applyPitchGlide(body, t0, basePitchHz * glideAmount, basePitchHz, glideSec);
-  applyAD(bodyGain, t0, 1, attackSec, decaySec, 'exp');
+  applyPunchDecay(bodyGain, t0, 1, attackSec, punchDecaySec, sustainFrac, tailDecaySec);
   body.start(t0);
-  body.stop(t0 + decaySec + 0.25);
+  body.stop(t0 + punchDecaySec + tailDecaySec + 0.25);
 
   // Beater/click transient — kicks lean on this a lot more than 808s do.
+  // A low-passed thump, not a bandpassed "tick": a reference kit measured
+  // real kick transients concentrated around 60-290Hz, not the kHz range.
   // Bypasses the resonant lowpass: a noise impulse through a high-Q filter
-  // rings at the cutoff frequency instead of just clicking.
-  const noiseBuf = makeNoiseBuffer(ctx, 0.025, rng);
+  // rings at the cutoff frequency instead of just thumping.
+  const noiseBuf = makeNoiseBuffer(ctx, 0.03, rng);
   const click = noiseSource(ctx, noiseBuf);
   const clickFilter = ctx.createBiquadFilter();
-  clickFilter.type = 'bandpass';
-  clickFilter.frequency.value = lerp(1200, 4200, params.tone) * randRange(rng, 0.95, 1.05);
-  clickFilter.Q.value = 1.1;
+  clickFilter.type = 'lowpass';
+  clickFilter.frequency.value = lerp(140, 420, params.tone) * randRange(rng, 0.95, 1.05);
+  clickFilter.Q.value = 0.9;
   const clickGain = ctx.createGain();
   click.connect(clickFilter);
   clickFilter.connect(clickGain);
   clickGain.connect(preColor);
-  applyAD(clickGain, t0, 0.4 + 0.6 * params.punch, 0.0008, 0.015, 'exp');
+  applyAD(clickGain, t0, 0.45 + 0.55 * params.punch, 0.0008, 0.02, 'exp');
   click.start(t0);
-  click.stop(t0 + 0.03);
+  click.stop(t0 + 0.04);
 }
 
 export function makeKickRecipe(seed: number, basePitchHz: number, params: SoundRecipe['params']): SoundRecipe {
-  const durationSec = lerp(0.25, 0.85, params.decay) + 0.2;
+  const durationSec = kickTailDecaySec(params.decay, 0.65) + 0.2;
   return { id: `kick-${seed}`, instrument: 'kick', seed, params, basePitchHz, durationSec };
 }

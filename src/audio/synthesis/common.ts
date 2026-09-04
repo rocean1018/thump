@@ -118,6 +118,34 @@ export function applyAD(
   }
 }
 
+/**
+ * Two-stage "punch then sustain" envelope. A single exponential decay (applyAD)
+ * doesn't match how real 808s/kicks actually behave: measuring a reference kit
+ * showed a sharp initial drop from the peak down to a lower level within
+ * ~2-30ms (the "punch"), followed by a much slower decay of that sustained
+ * level over hundreds of ms to a few seconds (the "tail"). Modeling both
+ * stages reads as far more like a real drum than one smooth fade.
+ */
+export function applyPunchDecay(
+  gain: GainNode,
+  startTime: number,
+  peak: number,
+  attackSec: number,
+  punchDecaySec: number,
+  sustainFrac: number,
+  tailDecaySec: number
+): void {
+  const g = gain.gain;
+  const a = Math.max(0.0015, attackSec);
+  const punchTau = Math.max(0.001, punchDecaySec / 4);
+  const kneeTime = startTime + a + punchDecaySec;
+  g.cancelScheduledValues(startTime);
+  g.setValueAtTime(0.0001, startTime);
+  g.linearRampToValueAtTime(peak, startTime + a);
+  g.setTargetAtTime(peak * sustainFrac, startTime + a, punchTau);
+  g.setTargetAtTime(0.0001, kneeTime, Math.max(0.01, tailDecaySec / 4));
+}
+
 /** Pitch envelope: quick glide from startHz down/up to endHz over glideSec. */
 export function applyPitchGlide(
   osc: OscillatorNode,

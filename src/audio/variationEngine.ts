@@ -7,13 +7,15 @@ import { makeKickRecipe } from './synthesis/kick';
 import { makeHihatRecipe } from './synthesis/hihat';
 import { makeSnareRecipe } from './synthesis/snare';
 
-// 808 and kick ranges deliberately don't overlap — without a real pitch gap
-// the two engines (both: sine + pitch glide + click) can land close enough to
-// be hard to tell apart. Extreme prompt pitch bias can still bridge the gap;
-// that's the user asking for it explicitly, not the default center drifting there.
+// Measuring a reference kit showed real 808s and kicks actually sit in a
+// similar low register (808s ~29-43Hz, kicks ~38-50Hz) — pitch alone isn't
+// what separates them in real production. Their differentiation comes mostly
+// from duration and decay shape (see 808.ts / kick.ts): kicks are short with
+// a fast punch-then-thud, 808s ring out much longer. Kick's range still sits
+// a bit higher on average so it isn't a pure duplicate of the 808 range.
 const BASE_PITCH_RANGE: Record<Instrument, [number, number]> = {
-  '808': [32, 52],
-  kick: [58, 102],
+  '808': [30, 48],
+  kick: [40, 82],
   hihat: [210, 380],
   snare: [175, 235],
 };
