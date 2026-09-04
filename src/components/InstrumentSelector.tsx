@@ -8,8 +8,8 @@ interface Props {
 
 export default function InstrumentSelector({ value, onChange, disabled }: Props) {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      {INSTRUMENTS.map((inst) => {
+    <div className="grid grid-cols-4 gap-2">
+      {INSTRUMENTS.map((inst, i) => {
         const active = inst.id === value;
         return (
           <button
@@ -18,16 +18,32 @@ export default function InstrumentSelector({ value, onChange, disabled }: Props)
             disabled={disabled}
             onClick={() => onChange(inst.id)}
             aria-pressed={active}
-            className={`group relative rounded-xl border px-4 py-3 text-left transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
+            title={inst.blurb}
+            className={`btn-hard group relative aspect-square rounded-sm border-2 transition-colors duration-100 disabled:opacity-40 disabled:cursor-not-allowed ${
               active
-                ? 'border-ember bg-ember/10 shadow-glow'
-                : 'border-line bg-surface hover:border-white/25 hover:bg-surface2'
+                ? 'border-ember bg-ember/15 shadow-glow'
+                : 'border-line bg-surface hover:border-line2 hover:bg-surface2'
             }`}
           >
-            <div className={`font-display font-semibold tracking-tight ${active ? 'text-ember2' : 'text-white'}`}>
+            <span
+              className={`absolute top-1.5 left-1.5 font-mono text-[9px] tracking-wider ${
+                active ? 'text-ember2' : 'text-white/30'
+              }`}
+            >
+              0{i + 1}
+            </span>
+            <span
+              className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${
+                active ? 'bg-acid shadow-acid' : 'bg-white/10'
+              }`}
+            />
+            <span
+              className={`absolute inset-x-0 bottom-2 font-display text-[13px] sm:text-sm leading-none tracking-tight ${
+                active ? 'text-paper' : 'text-white/65'
+              }`}
+            >
               {inst.label}
-            </div>
-            <div className="mt-0.5 text-xs text-white/50 leading-snug hidden sm:block">{inst.blurb}</div>
+            </span>
           </button>
         );
       })}

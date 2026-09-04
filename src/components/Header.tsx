@@ -1,19 +1,23 @@
 export default function Header() {
   return (
-    <header className="flex items-center justify-between mb-8">
-      <div className="flex items-center gap-2.5">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-ember2 to-ember shadow-glow" />
+    <header className="flex items-end justify-between mb-8 pb-5 border-b-2 border-line">
+      <div className="flex items-end gap-4">
         <div>
-          <h1 className="font-display text-xl font-bold tracking-tight leading-none">Thump</h1>
-          <p className="text-[11px] text-white/35 font-mono leading-none mt-1">describe it. hear it. drag it in.</p>
+          <h1 className="font-display text-[2.6rem] sm:text-5xl leading-[0.8] tracking-tight text-paper">
+            THUMP
+          </h1>
+          <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.25em] text-white/35">
+            drum one-shot synthesizer <span className="text-acid">/</span> model&nbsp;TH-1
+          </p>
         </div>
       </div>
-      <span
-        className="hidden sm:block text-xs font-mono text-white/30 border border-line rounded-full px-3 py-1.5 select-none"
-        title="100% in-browser — no account, no server, no upload"
-      >
-        runs entirely in your browser
-      </span>
+
+      <div className="hidden sm:flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-acid shadow-acid animate-pulseSlow" />
+        <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-white/40 border border-line px-2.5 py-1">
+          no server · no upload · runs in-browser
+        </span>
+      </div>
     </header>
   );
 }

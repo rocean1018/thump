@@ -9,38 +9,87 @@ body,
 }
 
 body {
-  background: #08090c;
+  background: #0a0908;
 }
 
+/* Fine film-grain overlay — sits over everything, breaks up flat gradients. */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background-image: theme('backgroundImage.grain');
+  opacity: 0.05;
+  mix-blend-mode: overlay;
+}
+
+.scanlines {
+  background-image: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.05) 0px,
+    rgba(255, 255, 255, 0.05) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* Fader-style range input — a mechanical cap on a grooved track, not a soft round thumb. */
 input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
-  height: 4px;
-  border-radius: 999px;
-  background: #22262f;
+  height: 6px;
+  border-radius: 1px;
+  background: #100f0d;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.8), inset 0 0 0 1px #332d24;
 }
 input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 15px;
-  height: 15px;
-  border-radius: 999px;
-  background: #ff5a3c;
-  border: 2px solid #08090c;
+  width: 10px;
+  height: 22px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ff8a3d, #ff4310);
+  border: 1px solid #a8280a;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 12px -2px rgba(255, 67, 16, 0.7);
   cursor: pointer;
-  margin-top: -5.5px;
+  margin-top: -8px;
 }
 input[type='range']::-moz-range-thumb {
-  width: 15px;
-  height: 15px;
-  border-radius: 999px;
-  background: #ff5a3c;
-  border: 2px solid #08090c;
+  width: 10px;
+  height: 22px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #ff8a3d, #ff4310);
+  border: 1px solid #a8280a;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4), 0 0 12px -2px rgba(255, 67, 16, 0.7);
   cursor: pointer;
+}
+input[type='range']::-moz-range-track {
+  height: 6px;
+  border-radius: 1px;
+  background: #100f0d;
+}
+
+/* Hardware-button press feel: shift down and flatten the shadow on click. */
+.btn-hard {
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.08s ease;
+}
+.btn-hard:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: none !important;
+  filter: brightness(0.92);
+}
+
+.corner-rivet {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #4a4032, #100f0d);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 ::selection {
-  background: rgba(255, 90, 60, 0.35);
+  background: rgba(255, 67, 16, 0.35);
 }
 
 @media (prefers-reduced-motion: reduce) {

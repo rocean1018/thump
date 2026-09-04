@@ -15,7 +15,8 @@ export default function PromptInput({ value, onChange, disabled }: Props) {
 
   return (
     <div>
-      <label htmlFor="prompt" className="block text-xs font-mono uppercase tracking-wider text-white/40 mb-2">
+      <label htmlFor="prompt" className="flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-[0.2em] text-white/40 mb-2">
+        <span className="w-1 h-1 bg-ember rounded-full" />
         Describe the sound
       </label>
       <textarea
@@ -23,10 +24,10 @@ export default function PromptInput({ value, onChange, disabled }: Props) {
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g. dark, punchy 808 with a long tail and a bit of grit"
+        placeholder="dark, punchy 808 with a long tail and a bit of grit"
         rows={2}
         maxLength={220}
-        className="w-full resize-none rounded-xl border border-line bg-surface px-4 py-3 text-[15px] leading-relaxed placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-ember/50 focus:border-ember/60 transition-colors disabled:opacity-50"
+        className="w-full resize-none rounded-sm border-2 border-line bg-panel px-3.5 py-3 text-[15px] leading-relaxed text-paper placeholder:text-white/25 focus:outline-none focus:border-ember/70 transition-colors disabled:opacity-50"
       />
       <div className="mt-2.5 flex flex-wrap gap-1.5">
         {QUICK_TAGS.map((tag) => (
@@ -35,9 +36,9 @@ export default function PromptInput({ value, onChange, disabled }: Props) {
             type="button"
             disabled={disabled}
             onClick={() => addTag(tag)}
-            className="rounded-full border border-line bg-surface2 px-2.5 py-1 text-xs text-white/60 hover:text-white hover:border-white/30 transition-colors disabled:opacity-40"
+            className="rounded-sm border border-line bg-surface2 px-2 py-0.5 font-mono text-[11px] text-white/50 hover:text-acid hover:border-acid/50 transition-colors disabled:opacity-40"
           >
-            + {tag}
+            {tag}
           </button>
         ))}
       </div>

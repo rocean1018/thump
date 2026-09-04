@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react';
 import { getMasterChain } from '../audio/playback';
 
 /**
- * Full-bleed ambient background reacting to whatever is actually playing
- * through the shared master analyser. Purely decorative (aria-hidden,
- * pointer-events: none) and disabled under prefers-reduced-motion.
+ * Full-bleed segmented spectrum meter anchored to the bottom of the viewport —
+ * reads as hardware EQ/VU metering rather than decorative rays. Reacts to
+ * whatever is actually playing through the shared master analyser. Purely
+ * decorative (aria-hidden, pointer-events: none), disabled under
+ * prefers-reduced-motion.
  */
 export default function AudioReactiveBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -25,28 +27,35 @@ export default function AudioReactiveBackground() {
     resize();
     window.addEventListener('resize', resize);
 
-    if (reduceMotion) {
+    const COLS = 56;
+    const CELL_H = 7;
+    const CELL_GAP = 3;
+    const smoothed = new Float32Array(COLS);
+
+    function drawStatic() {
+      if (!ctx || !canvas) return;
       const { width, height } = canvas;
-      const g = ctx.createRadialGradient(width / 2, height * 0.35, 0, width / 2, height * 0.35, height * 0.8);
-      g.addColorStop(0, 'rgba(255,90,60,0.10)');
-      g.addColorStop(1, 'rgba(8,9,12,0)');
+      ctx.clearRect(0, 0, width, height);
+      const g = ctx.createLinearGradient(0, height, 0, height * 0.55);
+      g.addColorStop(0, 'rgba(255,67,16,0.06)');
+      g.addColorStop(1, 'rgba(10,9,8,0)');
       ctx.fillStyle = g;
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, height * 0.55, width, height * 0.45);
+    }
+
+    if (reduceMotion) {
+      drawStatic();
       return () => window.removeEventListener('resize', resize);
     }
 
     let raf = 0;
     let t = 0;
-    const bars = 64;
-    const smoothed = new Float32Array(bars);
 
     function frame() {
       const canvasEl = canvasRef.current;
       if (!canvasEl || !ctx) return;
       const { width, height } = canvasEl;
-      const cx = width / 2;
-      const cy = height * 0.42;
-      const baseRadius = Math.min(width, height) * 0.18;
+      ctx.clearRect(0, 0, width, height);
 
       let bytes: Uint8Array<ArrayBuffer> | null = null;
       try {
@@ -57,38 +66,29 @@ export default function AudioReactiveBackground() {
         bytes = null;
       }
 
-      ctx.clearRect(0, 0, width, height);
-      const bg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.75);
-      bg.addColorStop(0, 'rgba(255,90,60,0.09)');
-      bg.addColorStop(0.5, 'rgba(110,231,255,0.03)');
-      bg.addColorStop(1, 'rgba(8,9,12,0)');
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, width, height);
+      t += 0.02;
+      const colWidth = width / COLS;
+      const maxCells = Math.floor(height * 0.5 / (CELL_H + CELL_GAP));
 
-      t += 0.006;
-      for (let i = 0; i < bars; i++) {
-        const angle = (i / bars) * Math.PI * 2;
-        const idleWobble = Math.sin(t * 2 + i * 0.35) * 0.5 + 0.5;
-        let energy = idleWobble * 0.12;
+      for (let i = 0; i < COLS; i++) {
+        const idle = (Math.sin(t + i * 0.5) * 0.5 + 0.5) * 0.06;
+        let energy = idle;
         if (bytes) {
-          const binIndex = Math.floor((i / bars) * bytes.length * 0.6);
-          energy = Math.max(energy, (bytes[binIndex] ?? 0) / 255);
+          const binIndex = Math.floor((i / COLS) * bytes.length * 0.7);
+          energy = Math.max(idle, (bytes[binIndex] ?? 0) / 255);
         }
-        smoothed[i] += (energy - smoothed[i]) * 0.25;
+        smoothed[i] += (energy - smoothed[i]) * 0.3;
 
-        const len = baseRadius * (0.35 + smoothed[i] * 1.6);
-        const x1 = cx + Math.cos(angle) * baseRadius;
-        const y1 = cy + Math.sin(angle) * baseRadius;
-        const x2 = cx + Math.cos(angle) * (baseRadius + len);
-        const y2 = cy + Math.sin(angle) * (baseRadius + len);
-
-        const hue = smoothed[i] > 0.5 ? 'rgba(255,138,92,' : 'rgba(110,231,255,';
-        ctx.strokeStyle = `${hue}${0.15 + smoothed[i] * 0.5})`;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        ctx.moveTo(x1, y1);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
+        const cells = Math.round(smoothed[i] * maxCells);
+        const x = i * colWidth;
+        for (let c = 0; c < cells; c++) {
+          const frac = c / maxCells;
+          const y = height - (c + 1) * (CELL_H + CELL_GAP);
+          const isHot = frac > 0.72;
+          const alpha = 0.1 + frac * 0.35;
+          ctx.fillStyle = isHot ? `rgba(215,255,63,${alpha})` : `rgba(255,67,16,${alpha})`;
+          ctx.fillRect(x + 1, y, colWidth - 2, CELL_H);
+        }
       }
 
       raf = requestAnimationFrame(frame);
@@ -101,11 +101,5 @@ export default function AudioReactiveBackground() {
     };
   }, []);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      aria-hidden="true"
-      className="fixed inset-0 -z-10 pointer-events-none"
-    />
-  );
+  return <canvas ref={canvasRef} aria-hidden="true" className="fixed inset-0 -z-10 pointer-events-none" />;
 }

@@ -8,12 +8,12 @@ interface WaveformProps {
   height?: number;
 }
 
-/** Draws a min/max peak waveform to canvas and animates a playhead while playing. */
+/** Draws a min/max peak waveform, oscilloscope-style, with a glowing playhead trace. */
 export default function Waveform({
   buffer,
   isPlaying,
-  color = 'rgba(255,255,255,0.35)',
-  playedColor = '#ff8a5c',
+  color = 'rgba(79,214,196,0.28)',
+  playedColor = '#d7ff3f',
   height = 64,
 }: WaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -55,13 +55,25 @@ export default function Waveform({
     function draw(progress: number) {
       if (!ctx) return;
       ctx.clearRect(0, 0, canvas!.width, canvas!.height);
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, mid);
+      ctx.lineTo(width, mid);
+      ctx.stroke();
+
       const playedX = Math.floor(progress * width);
       for (let x = 0; x < width; x++) {
         const { min, max } = peaks[x];
         const barHeight = Math.max(1, (max - min) * mid);
-        ctx.fillStyle = x <= playedX ? playedColor : color;
+        const played = x <= playedX;
+        ctx.shadowBlur = played ? 6 : 0;
+        ctx.shadowColor = playedColor;
+        ctx.fillStyle = played ? playedColor : color;
         ctx.fillRect(x, mid - Math.max(max * mid, 0.5), 1, barHeight);
       }
+      ctx.shadowBlur = 0;
     }
 
     if (!isPlaying) {
@@ -86,12 +98,5 @@ export default function Waveform({
     };
   }, [buffer, isPlaying, color, playedColor, height]);
 
-  return (
-    <canvas
-      ref={canvasRef}
-      className="w-full block"
-      style={{ height }}
-      aria-hidden="true"
-    />
-  );
+  return <canvas ref={canvasRef} className="w-full block" style={{ height }} aria-hidden="true" />;
 }

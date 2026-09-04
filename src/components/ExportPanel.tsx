@@ -36,27 +36,27 @@ export default function ExportPanel({ buffer, instrument, prompt }: Props) {
   };
 
   return (
-    <div className="rounded-2xl border border-line bg-surface p-5">
-      <h3 className="font-display font-semibold mb-1">Export</h3>
-      <p className="text-xs text-white/40 mb-4">
-        {buffer ? `${buffer.duration.toFixed(2)}s · ${buffer.sampleRate / 1000}kHz · 16-bit` : 'Select a variation first'}
+    <div className="rounded-sm border-2 border-line bg-panel p-5 shadow-plate">
+      <h3 className="font-display text-lg tracking-tight text-paper mb-1">BOUNCE</h3>
+      <p className="font-mono text-[11px] text-white/35 mb-4">
+        {buffer ? `${buffer.duration.toFixed(2)}s · ${buffer.sampleRate / 1000}khz · 16-bit` : 'select a variation first'}
       </p>
-      <div className="flex gap-2">
+      <div className="flex flex-col gap-2">
         <button
           type="button"
           disabled={!buffer}
           onClick={exportWav}
-          className="flex-1 rounded-lg bg-ember text-black font-medium py-2.5 text-sm hover:bg-ember2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-hard rounded-sm bg-acid text-void font-mono text-xs uppercase tracking-wider py-3 border-2 border-acidDeep shadow-[0_4px_0_theme(colors.acidDeep)] hover:brightness-105 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          Download WAV
+          ↓ download wav
         </button>
         <button
           type="button"
           disabled={!buffer || encodingMp3}
           onClick={exportMp3}
-          className="flex-1 rounded-lg border border-line bg-surface2 font-medium py-2.5 text-sm hover:border-white/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="btn-hard rounded-sm border-2 border-line2 bg-surface2 font-mono text-xs uppercase tracking-wider py-3 text-white/75 hover:border-white/40 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {encodingMp3 ? 'Encoding…' : 'Download MP3'}
+          {encodingMp3 ? '· encoding ·' : '↓ download mp3'}
         </button>
       </div>
     </div>

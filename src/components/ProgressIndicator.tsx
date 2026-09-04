@@ -5,40 +5,42 @@ interface Props {
   variations: (Variation | null)[];
 }
 
-const STEPS: { key: GenerationStage; label: string }[] = [
-  { key: 'parsing-prompt', label: 'Reading prompt' },
-  { key: 'synthesizing', label: 'Synthesizing' },
-  { key: 'ready', label: 'Ready' },
-];
+const SEGMENTS = 16;
 
-function stageIndex(stage: GenerationStage): number {
-  const idx = STEPS.findIndex((s) => s.key === stage);
-  return idx === -1 ? 0 : idx;
+function litCount(stage: GenerationStage, done: number): number {
+  if (stage === 'parsing-prompt') return 2;
+  if (stage === 'synthesizing') return 4 + done * 4;
+  if (stage === 'ready') return SEGMENTS;
+  return 0;
 }
 
-/** Reflects real progress: prompt parsed, then each variation lighting up as it finishes rendering. */
+/** LED-meter style progress — segments light up as prompt parsing and each variation finish rendering. */
 export default function ProgressIndicator({ stage, variations }: Props) {
   if (stage === 'idle') return null;
   const done = variations.filter(Boolean).length;
-  const current = stageIndex(stage);
+  const lit = litCount(stage, done);
 
   return (
     <div className="animate-rise" role="status" aria-live="polite">
-      <div className="flex items-center gap-2 mb-2">
-        {STEPS.map((step, i) => (
-          <div
-            key={step.key}
-            className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-              i < current || stage === 'ready' ? 'bg-ember' : i === current ? 'bg-ember/50 animate-pulseSlow' : 'bg-line'
-            }`}
-          />
-        ))}
+      <div className="flex gap-[3px] mb-2">
+        {Array.from({ length: SEGMENTS }).map((_, i) => {
+          const on = i < lit;
+          const hot = i >= SEGMENTS - 3;
+          return (
+            <span
+              key={i}
+              className={`h-2 flex-1 rounded-[1px] transition-colors duration-150 ${
+                on ? (hot ? 'bg-acid shadow-acid' : 'bg-ember') : 'bg-line'
+              }`}
+            />
+          );
+        })}
       </div>
-      <p className="text-xs font-mono text-white/45">
-        {stage === 'parsing-prompt' && 'Reading prompt & reference…'}
-        {stage === 'synthesizing' && `Synthesizing variations… ${done}/3 ready`}
-        {stage === 'ready' && 'Three variations ready — audition and pick one.'}
-        {stage === 'error' && 'Generation hit a snag.'}
+      <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-white/40">
+        {stage === 'parsing-prompt' && 'reading prompt & reference…'}
+        {stage === 'synthesizing' && `synthesizing — ${done}/3 rendered`}
+        {stage === 'ready' && 'ready — audition and pick one'}
+        {stage === 'error' && 'generation hit a snag'}
       </p>
     </div>
   );
