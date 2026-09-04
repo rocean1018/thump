@@ -1,6 +1,17 @@
 import type { SoundRecipe } from '../../types';
 import { mulberry32, randRange } from '../rng';
-import { applyAD, applyPitchGlide, clamp, lerp, makeDistortion, makeNoiseBuffer, noiseSource } from './common';
+import {
+  applyAD,
+  applyPitchGlide,
+  chainNodes,
+  clamp,
+  lerp,
+  makeDistortion,
+  makeGrit,
+  makeNoiseBuffer,
+  noiseSource,
+  resonanceToQ,
+} from './common';
 
 /** Kick: like the 808 but shorter, punchier, with a stronger click and shorter tail. */
 export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): void {
@@ -17,15 +28,16 @@ export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): v
   master.gain.value = 1;
   master.connect(ctx.destination);
 
-  const shaper = params.distortion > 0.02 ? makeDistortion(ctx, params.distortion) : null;
-  const preDist = shaper ?? master;
-  if (shaper) shaper.connect(master);
+  const colorNodes: AudioNode[] = [];
+  if (params.grit > 0.03) colorNodes.push(makeGrit(ctx, params.grit));
+  if (params.distortion > 0.02) colorNodes.push(makeDistortion(ctx, params.distortion));
+  const preColor = chainNodes(colorNodes, master);
 
   const lowpass = ctx.createBiquadFilter();
   lowpass.type = 'lowpass';
   lowpass.frequency.value = lerp(900, 8500, params.tone);
-  lowpass.Q.value = 0.7;
-  lowpass.connect(preDist);
+  lowpass.Q.value = resonanceToQ(params.resonance, 0.5, 10);
+  lowpass.connect(preColor);
 
   const body = ctx.createOscillator();
   body.type = 'sine';

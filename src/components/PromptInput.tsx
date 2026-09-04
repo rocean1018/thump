@@ -1,4 +1,4 @@
-const QUICK_TAGS = ['dark', 'punchy', 'long-tailed', 'clipped', 'metallic', 'warm', 'tight', 'distorted'];
+const QUICK_TAGS = ['dark', 'punchy', 'long tail', 'metallic', 'dusty', 'resonant', 'boom bap', 'phonk', 'tight', 'distorted'];
 
 interface Props {
   value: string;
@@ -8,8 +8,7 @@ interface Props {
 
 export default function PromptInput({ value, onChange, disabled }: Props) {
   const addTag = (tag: string) => {
-    const words = value.toLowerCase().split(/\s+/).filter(Boolean);
-    if (words.includes(tag)) return;
+    if (value.toLowerCase().includes(tag)) return;
     onChange(value.trim().length > 0 ? `${value.trim()} ${tag}` : tag);
   };
 

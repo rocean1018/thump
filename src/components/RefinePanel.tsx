@@ -13,7 +13,9 @@ const SLIDERS: SliderDef[] = [
   { key: 'decay', label: 'Decay', left: 'tight', right: 'long tail' },
   { key: 'punch', label: 'Punch', left: 'none', right: 'max thump' },
   { key: 'tone', label: 'Tone', left: 'dark', right: 'bright' },
+  { key: 'resonance', label: 'Resonance', left: 'flat', right: 'ringing' },
   { key: 'distortion', label: 'Distortion', left: 'clean', right: 'saturated' },
+  { key: 'grit', label: 'Grit', left: 'smooth', right: 'crushed' },
 ];
 
 interface Props {

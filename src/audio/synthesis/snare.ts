@@ -1,6 +1,6 @@
 import type { SoundRecipe } from '../../types';
 import { mulberry32, randRange } from '../rng';
-import { applyAD, lerp, makeDistortion, makeNoiseBuffer, noiseSource } from './common';
+import { applyAD, chainNodes, lerp, makeDistortion, makeGrit, makeNoiseBuffer, noiseSource, resonanceToQ } from './common';
 
 /**
  * Trap snares are snap-first: a short, bright noise crack carries the sound,
@@ -25,9 +25,10 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   master.gain.value = 1;
   master.connect(ctx.destination);
 
-  const shaper = params.distortion > 0.02 ? makeDistortion(ctx, params.distortion) : null;
-  const preDist = shaper ?? master;
-  if (shaper) shaper.connect(master);
+  const colorNodes: AudioNode[] = [];
+  if (params.grit > 0.03) colorNodes.push(makeGrit(ctx, params.grit));
+  if (params.distortion > 0.02) colorNodes.push(makeDistortion(ctx, params.distortion));
+  const preColor = chainNodes(colorNodes, master);
 
   // Thin tonal body — present for pitch reference, not for weight.
   const body = ctx.createOscillator();
@@ -35,7 +36,7 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   body.frequency.value = basePitchHz * randRange(rng, 0.97, 1.03);
   const bodyGain = ctx.createGain();
   body.connect(bodyGain);
-  bodyGain.connect(preDist);
+  bodyGain.connect(preColor);
   applyAD(bodyGain, t0, 0.28 + 0.1 * params.punch, attackSec, decaySec * 0.3, 'exp');
   body.start(t0);
   body.stop(t0 + decaySec * 0.5 + 0.05);
@@ -47,7 +48,7 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   const bandpass = ctx.createBiquadFilter();
   bandpass.type = 'bandpass';
   bandpass.frequency.value = lerp(2200, 8200, params.tone);
-  bandpass.Q.value = 0.7;
+  bandpass.Q.value = resonanceToQ(params.resonance, 0.5, 12);
   const highpass = ctx.createBiquadFilter();
   highpass.type = 'highpass';
   highpass.frequency.value = lerp(1100, 3200, params.tone);
@@ -55,7 +56,7 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   noise.connect(bandpass);
   bandpass.connect(highpass);
   highpass.connect(noiseGain);
-  noiseGain.connect(preDist);
+  noiseGain.connect(preColor);
   applyAD(noiseGain, t0, 0.75 + 0.35 * params.punch, attackSec, decaySec, 'exp');
   noise.start(t0);
   noise.stop(t0 + noiseDur);
@@ -71,7 +72,7 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
     const crackGain = ctx.createGain();
     crack.connect(crackFilter);
     crackFilter.connect(crackGain);
-    crackGain.connect(preDist);
+    crackGain.connect(preColor);
     applyAD(crackGain, t0, 0.5 * params.punch, 0.0004, 0.012, 'exp');
     crack.start(t0);
     crack.stop(t0 + crackDur);

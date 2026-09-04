@@ -26,6 +26,48 @@ export function makeDistortion(ctx: BaseAudioContext, amount: number): WaveShape
   return shaper;
 }
 
+/**
+ * Amplitude-quantization ("bitcrush") curve — a staircase, not a smooth curve.
+ * Sonically distinct from makeDistortionCurve: that's harmonic saturation
+ * (clipping), this is aliasing/quantization grit — the "dusty tape" / "crushed"
+ * character rather than "driven" character. amount: 0..1.
+ */
+export function makeBitcrushCurve(amount: number, samples = 1024): Float32Array<ArrayBuffer> {
+  const curve = new Float32Array(samples);
+  const steps = Math.round(lerp(256, 5, amount)); // fewer steps = more crushed
+  for (let i = 0; i < samples; i++) {
+    const x = (i / (samples - 1)) * 2 - 1;
+    curve[i] = Math.round(x * steps) / steps;
+  }
+  return curve;
+}
+
+export function makeGrit(ctx: BaseAudioContext, amount: number): WaveShaperNode {
+  const shaper = ctx.createWaveShaper();
+  shaper.curve = makeBitcrushCurve(amount);
+  shaper.oversample = 'none'; // oversampling would smooth out the very aliasing we want
+  return shaper;
+}
+
+/** Maps the 0..1 "resonance" creative param onto a biquad Q range. */
+export function resonanceToQ(resonance: number, min = 0.5, max = 14): number {
+  return lerp(min, max, resonance * resonance);
+}
+
+/**
+ * Wires a list of nodes in series ending at `destination` and returns the
+ * first node — the point everything upstream should connect into. Lets each
+ * engine build its "coloration chain" (grit, then distortion, then master) as
+ * a flat list instead of hand-wiring optional nodes each time.
+ */
+export function chainNodes(nodes: AudioNode[], destination: AudioNode): AudioNode {
+  const all = [...nodes, destination];
+  for (let i = 0; i < all.length - 1; i++) {
+    all[i].connect(all[i + 1]);
+  }
+  return all[0];
+}
+
 /** White noise buffer, optionally decaying, rendered once and reused as a source. */
 export function makeNoiseBuffer(ctx: BaseAudioContext, durationSec: number, rng: () => number): AudioBuffer {
   const length = Math.max(1, Math.ceil(durationSec * ctx.sampleRate));

@@ -36,6 +36,8 @@ function applyDelta(base: number, delta: number | undefined): number {
   return clamp(base + (delta ?? 0), 0, 1);
 }
 
+const PARAM_KEYS: (keyof CreativeParams)[] = ['attack', 'decay', 'punch', 'tone', 'distortion', 'grit', 'resonance'];
+
 interface CenterResult {
   params: CreativeParams;
   basePitchHz: number;
@@ -52,13 +54,9 @@ export function computeCenter(
   let basePitchHz = pitchMin + (pitchMax - pitchMin) * 0.5;
 
   if (prompt) {
-    params = {
-      attack: applyDelta(params.attack, prompt.deltas.attack),
-      decay: applyDelta(params.decay, prompt.deltas.decay),
-      punch: applyDelta(params.punch, prompt.deltas.punch),
-      tone: applyDelta(params.tone, prompt.deltas.tone),
-      distortion: applyDelta(params.distortion, prompt.deltas.distortion),
-    };
+    const next = { ...params };
+    for (const key of PARAM_KEYS) next[key] = applyDelta(params[key], prompt.deltas[key]);
+    params = next;
     basePitchHz *= Math.pow(2, prompt.pitchBiasSemitones / 12);
   }
 
@@ -73,11 +71,10 @@ export function computeCenter(
     const refTone = clamp((reference.spectralCentroidHz - 500) / (9000 - 500), 0, 1);
 
     params = {
+      ...params,
       attack: params.attack * (1 - blend) + refAttack * blend,
       decay: params.decay * (1 - blend) + refDecay * blend,
-      punch: params.punch,
       tone: params.tone * (1 - blend) + refTone * blend,
-      distortion: params.distortion,
     };
 
     if (reference.fundamentalHz && reference.fundamentalHz >= pitchMin * 0.5 && reference.fundamentalHz <= pitchMax * 2.2) {
@@ -86,15 +83,10 @@ export function computeCenter(
     }
   }
 
-  params = {
-    attack: clamp(params.attack, 0, 1),
-    decay: clamp(params.decay, 0, 1),
-    punch: clamp(params.punch, 0, 1),
-    tone: clamp(params.tone, 0, 1),
-    distortion: clamp(params.distortion, 0, 1),
-  };
+  const clamped = { ...params };
+  for (const key of PARAM_KEYS) clamped[key] = clamp(params[key], 0, 1);
 
-  return { params, basePitchHz };
+  return { params: clamped, basePitchHz };
 }
 
 // Each of the 3 slots is deliberately pulled toward a different corner of the
@@ -102,10 +94,10 @@ export function computeCenter(
 // results read as genuinely different takes, not noise around one point.
 // Random jitter is layered on top per-slot so repeated regenerations don't just
 // reproduce the same three archetypes.
-const SLOT_BIAS: { attack: number; decay: number; punch: number; tone: number; distortion: number; pitchSemi: number }[] = [
-  { attack: -0.16, decay: -0.22, punch: 0.14, tone: -0.16, distortion: -0.05, pitchSemi: -2.2 },
-  { attack: 0, decay: 0, punch: 0, tone: 0, distortion: 0, pitchSemi: 0 },
-  { attack: 0.14, decay: 0.26, punch: -0.1, tone: 0.18, distortion: 0.1, pitchSemi: 2.6 },
+const SLOT_BIAS: (Record<keyof CreativeParams, number> & { pitchSemi: number })[] = [
+  { attack: -0.16, decay: -0.22, punch: 0.14, tone: -0.16, distortion: -0.05, grit: 0.1, resonance: 0.05, pitchSemi: -2.2 },
+  { attack: 0, decay: 0, punch: 0, tone: 0, distortion: 0, grit: 0, resonance: 0, pitchSemi: 0 },
+  { attack: 0.14, decay: 0.26, punch: -0.1, tone: 0.18, distortion: 0.1, grit: -0.08, resonance: 0.15, pitchSemi: 2.6 },
 ];
 
 const JITTER = 0.14;
@@ -141,6 +133,8 @@ export function generateVariations(
       punch: jitter('punch', bias.punch),
       tone: jitter('tone', bias.tone),
       distortion: jitter('distortion', bias.distortion * 0.7),
+      grit: jitter('grit', bias.grit),
+      resonance: jitter('resonance', bias.resonance),
     };
 
     const pitchSemitones = bias.pitchSemi * pitchSpreadScale + randRange(vRng, -PITCH_JITTER_SEMITONES, PITCH_JITTER_SEMITONES);

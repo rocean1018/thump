@@ -1,6 +1,17 @@
 import type { SoundRecipe } from '../../types';
 import { mulberry32, randRange } from '../rng';
-import { applyAD, applyPitchGlide, clamp, lerp, makeDistortion, makeNoiseBuffer, noiseSource } from './common';
+import {
+  applyAD,
+  applyPitchGlide,
+  chainNodes,
+  clamp,
+  lerp,
+  makeDistortion,
+  makeGrit,
+  makeNoiseBuffer,
+  noiseSource,
+  resonanceToQ,
+} from './common';
 
 /**
  * 808: sine-dominant sub with a short pitched "pluck" glide down to the
@@ -20,16 +31,16 @@ export function synthesize808(ctx: OfflineAudioContext, recipe: SoundRecipe): vo
   master.gain.value = 1;
   master.connect(ctx.destination);
 
-  const distAmount = params.distortion;
-  const shaper = distAmount > 0.02 ? makeDistortion(ctx, distAmount) : null;
-  const preDist = shaper ?? master;
-  if (shaper) shaper.connect(master);
+  const colorNodes: AudioNode[] = [];
+  if (params.grit > 0.03) colorNodes.push(makeGrit(ctx, params.grit));
+  if (params.distortion > 0.02) colorNodes.push(makeDistortion(ctx, params.distortion));
+  const preColor = chainNodes(colorNodes, master);
 
   const lowpass = ctx.createBiquadFilter();
   lowpass.type = 'lowpass';
   lowpass.frequency.value = lerp(700, 9000, params.tone);
-  lowpass.Q.value = 0.6;
-  lowpass.connect(preDist);
+  lowpass.Q.value = resonanceToQ(params.resonance, 0.5, 9);
+  lowpass.connect(preColor);
 
   // Body: sine with pitch glide.
   const body = ctx.createOscillator();

@@ -1,6 +1,6 @@
 import type { SoundRecipe } from '../../types';
 import { mulberry32, randRange } from '../rng';
-import { applyAD, clamp, lerp, makeDistortion, makeNoiseBuffer, noiseSource } from './common';
+import { applyAD, chainNodes, clamp, lerp, makeDistortion, makeGrit, makeNoiseBuffer, noiseSource, resonanceToQ } from './common';
 
 // Classic inharmonic ratio bank (TR-808-style metallic hi-hat), jittered per-seed
 // so each variation has an audibly different metallic character.
@@ -29,9 +29,10 @@ export function synthesizeHihat(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   master.gain.value = 1;
   master.connect(ctx.destination);
 
-  const shaper = params.distortion > 0.02 ? makeDistortion(ctx, params.distortion * 0.6) : null;
-  const preDist = shaper ?? master;
-  if (shaper) shaper.connect(master);
+  const colorNodes: AudioNode[] = [];
+  if (params.grit > 0.03) colorNodes.push(makeGrit(ctx, params.grit));
+  if (params.distortion > 0.02) colorNodes.push(makeDistortion(ctx, params.distortion * 0.6));
+  const preColor = chainNodes(colorNodes, master);
 
   // Trap hats are thin and bright — push the whole thing through a tight
   // highpass/bandpass stack so there's no low-mid "wash" left in the tail.
@@ -39,12 +40,12 @@ export function synthesizeHihat(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   highpass.type = 'highpass';
   highpass.frequency.value = lerp(5500, 11000, params.tone);
   highpass.Q.value = 0.6;
-  highpass.connect(preDist);
+  highpass.connect(preColor);
 
   const bandpass = ctx.createBiquadFilter();
   bandpass.type = 'bandpass';
   bandpass.frequency.value = lerp(7500, 12500, params.tone);
-  bandpass.Q.value = 0.9;
+  bandpass.Q.value = resonanceToQ(params.resonance, 0.6, 16);
   bandpass.connect(highpass);
 
   const ringGain = ctx.createGain();

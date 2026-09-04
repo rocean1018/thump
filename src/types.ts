@@ -19,7 +19,9 @@ export interface CreativeParams {
   decay: number; // 0 = short/tight, 1 = long tail
   punch: number; // 0 = none, 1 = maximum transient thump/click
   tone: number; // 0 = dark/dull, 1 = bright/airy (also nudges pitch for 808/kick)
-  distortion: number; // 0 = clean, 1 = heavily saturated/clipped
+  distortion: number; // 0 = clean, 1 = heavily saturated/clipped (harmonic waveshaper drive)
+  grit: number; // 0 = smooth, 1 = crushed/aliased (bit-depth quantization — a different texture than distortion)
+  resonance: number; // 0 = flat/smooth filtering, 1 = peaky/ringing/resonant
 }
 
 export const DEFAULT_CREATIVE_PARAMS: CreativeParams = {
@@ -28,6 +30,8 @@ export const DEFAULT_CREATIVE_PARAMS: CreativeParams = {
   punch: 0.5,
   tone: 0.5,
   distortion: 0.15,
+  grit: 0.08,
+  resonance: 0.32,
 };
 
 /**
