@@ -1,6 +1,6 @@
 import type { SoundRecipe } from '../../types';
 import { mulberry32, randRange } from '../rng';
-import { applyAD, chainNodes, lerp, makeDistortion, makeGrit, makeNoiseBuffer, noiseSource, resonanceToQ } from './common';
+import { applyAD, lerp, makeDistortion, makeGritBlend, makeNoiseBuffer, noiseSource, resonanceToQ } from './common';
 
 /**
  * Trap snares are snap-first: a short, bright noise crack carries the sound,
@@ -25,10 +25,9 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   master.gain.value = 1;
   master.connect(ctx.destination);
 
-  const colorNodes: AudioNode[] = [];
-  if (params.grit > 0.03) colorNodes.push(makeGrit(ctx, params.grit));
-  if (params.distortion > 0.02) colorNodes.push(makeDistortion(ctx, params.distortion));
-  const preColor = chainNodes(colorNodes, master);
+  const distNode = params.distortion > 0.02 ? makeDistortion(ctx, params.distortion) : null;
+  if (distNode) distNode.connect(master);
+  const preColor = makeGritBlend(ctx, params.grit, distNode ?? master);
 
   // Thin tonal body — present for pitch reference, not for weight.
   const body = ctx.createOscillator();

@@ -1,6 +1,6 @@
 import type { SoundRecipe } from '../../types';
 import { mulberry32, randRange } from '../rng';
-import { applyAD, chainNodes, clamp, lerp, makeDistortion, makeGrit, makeNoiseBuffer, noiseSource, resonanceToQ } from './common';
+import { applyAD, clamp, lerp, makeDistortion, makeGritBlend, makeNoiseBuffer, noiseSource, resonanceToQ } from './common';
 
 // Classic inharmonic ratio bank (TR-808-style metallic hi-hat), jittered per-seed
 // so each variation has an audibly different metallic character.
@@ -29,10 +29,9 @@ export function synthesizeHihat(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   master.gain.value = 1;
   master.connect(ctx.destination);
 
-  const colorNodes: AudioNode[] = [];
-  if (params.grit > 0.03) colorNodes.push(makeGrit(ctx, params.grit));
-  if (params.distortion > 0.02) colorNodes.push(makeDistortion(ctx, params.distortion * 0.6));
-  const preColor = chainNodes(colorNodes, master);
+  const distNode = params.distortion > 0.02 ? makeDistortion(ctx, params.distortion * 0.6) : null;
+  if (distNode) distNode.connect(master);
+  const preColor = makeGritBlend(ctx, params.grit, distNode ?? master);
 
   // Trap hats are thin and bright — push the whole thing through a tight
   // highpass/bandpass stack so there's no low-mid "wash" left in the tail.

@@ -3,11 +3,10 @@ import { mulberry32, randRange } from '../rng';
 import {
   applyAD,
   applyPitchGlide,
-  chainNodes,
   clamp,
   lerp,
   makeDistortion,
-  makeGrit,
+  makeGritBlend,
   makeNoiseBuffer,
   noiseSource,
   resonanceToQ,
@@ -31,15 +30,16 @@ export function synthesize808(ctx: OfflineAudioContext, recipe: SoundRecipe): vo
   master.gain.value = 1;
   master.connect(ctx.destination);
 
-  const colorNodes: AudioNode[] = [];
-  if (params.grit > 0.03) colorNodes.push(makeGrit(ctx, params.grit));
-  if (params.distortion > 0.02) colorNodes.push(makeDistortion(ctx, params.distortion));
-  const preColor = chainNodes(colorNodes, master);
+  const distNode = params.distortion > 0.02 ? makeDistortion(ctx, params.distortion) : null;
+  if (distNode) distNode.connect(master);
+  const preColor = makeGritBlend(ctx, params.grit, distNode ?? master);
 
   const lowpass = ctx.createBiquadFilter();
   lowpass.type = 'lowpass';
   lowpass.frequency.value = lerp(700, 9000, params.tone);
-  lowpass.Q.value = resonanceToQ(params.resonance, 0.5, 9);
+  // Capped well below hihat/snare's range — a self-ringing filter under a
+  // sweeping sub pitch glide reads as a sci-fi "laser" whistle, not a boomy 808.
+  lowpass.Q.value = resonanceToQ(params.resonance, 0.5, 4);
   lowpass.connect(preColor);
 
   // Body: sine with pitch glide.
@@ -66,7 +66,9 @@ export function synthesize808(ctx: OfflineAudioContext, recipe: SoundRecipe): vo
     harm.stop(t0 + decaySec * 0.5 + 0.2);
   }
 
-  // Click transient for punch.
+  // Click transient for punch — bypasses the resonant lowpass on purpose: a
+  // noise impulse hitting a high-Q filter rings at the cutoff frequency,
+  // which is what was producing an "alien ping" tail on top of the sub.
   if (params.punch > 0.05) {
     const noiseBuf = makeNoiseBuffer(ctx, 0.02, rng);
     const click = noiseSource(ctx, noiseBuf);
@@ -77,8 +79,8 @@ export function synthesize808(ctx: OfflineAudioContext, recipe: SoundRecipe): vo
     const clickGain = ctx.createGain();
     click.connect(clickFilter);
     clickFilter.connect(clickGain);
-    clickGain.connect(lowpass);
-    applyAD(clickGain, t0, 0.5 * params.punch, 0.001, 0.02, 'exp');
+    clickGain.connect(preColor);
+    applyAD(clickGain, t0, 0.35 * params.punch, 0.001, 0.02, 'exp');
     click.start(t0);
     click.stop(t0 + 0.03);
   }

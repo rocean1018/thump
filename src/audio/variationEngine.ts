@@ -7,9 +7,13 @@ import { makeKickRecipe } from './synthesis/kick';
 import { makeHihatRecipe } from './synthesis/hihat';
 import { makeSnareRecipe } from './synthesis/snare';
 
+// 808 and kick ranges deliberately don't overlap — without a real pitch gap
+// the two engines (both: sine + pitch glide + click) can land close enough to
+// be hard to tell apart. Extreme prompt pitch bias can still bridge the gap;
+// that's the user asking for it explicitly, not the default center drifting there.
 const BASE_PITCH_RANGE: Record<Instrument, [number, number]> = {
-  '808': [38, 60],
-  kick: [50, 92],
+  '808': [32, 52],
+  kick: [58, 102],
   hihat: [210, 380],
   snare: [175, 235],
 };

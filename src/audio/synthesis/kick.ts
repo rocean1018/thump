@@ -3,11 +3,10 @@ import { mulberry32, randRange } from '../rng';
 import {
   applyAD,
   applyPitchGlide,
-  chainNodes,
   clamp,
   lerp,
   makeDistortion,
-  makeGrit,
+  makeGritBlend,
   makeNoiseBuffer,
   noiseSource,
   resonanceToQ,
@@ -28,15 +27,14 @@ export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): v
   master.gain.value = 1;
   master.connect(ctx.destination);
 
-  const colorNodes: AudioNode[] = [];
-  if (params.grit > 0.03) colorNodes.push(makeGrit(ctx, params.grit));
-  if (params.distortion > 0.02) colorNodes.push(makeDistortion(ctx, params.distortion));
-  const preColor = chainNodes(colorNodes, master);
+  const distNode = params.distortion > 0.02 ? makeDistortion(ctx, params.distortion) : null;
+  if (distNode) distNode.connect(master);
+  const preColor = makeGritBlend(ctx, params.grit, distNode ?? master);
 
   const lowpass = ctx.createBiquadFilter();
   lowpass.type = 'lowpass';
   lowpass.frequency.value = lerp(900, 8500, params.tone);
-  lowpass.Q.value = resonanceToQ(params.resonance, 0.5, 10);
+  lowpass.Q.value = resonanceToQ(params.resonance, 0.5, 5);
   lowpass.connect(preColor);
 
   const body = ctx.createOscillator();
@@ -49,7 +47,9 @@ export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): v
   body.start(t0);
   body.stop(t0 + decaySec + 0.25);
 
-  // Beater/click transient — kicks lean on this more than 808s do.
+  // Beater/click transient — kicks lean on this a lot more than 808s do.
+  // Bypasses the resonant lowpass: a noise impulse through a high-Q filter
+  // rings at the cutoff frequency instead of just clicking.
   const noiseBuf = makeNoiseBuffer(ctx, 0.025, rng);
   const click = noiseSource(ctx, noiseBuf);
   const clickFilter = ctx.createBiquadFilter();
@@ -59,8 +59,8 @@ export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): v
   const clickGain = ctx.createGain();
   click.connect(clickFilter);
   clickFilter.connect(clickGain);
-  clickGain.connect(lowpass);
-  applyAD(clickGain, t0, 0.35 + 0.55 * params.punch, 0.0008, 0.015, 'exp');
+  clickGain.connect(preColor);
+  applyAD(clickGain, t0, 0.4 + 0.6 * params.punch, 0.0008, 0.015, 'exp');
   click.start(t0);
   click.stop(t0 + 0.03);
 }
