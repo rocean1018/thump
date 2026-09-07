@@ -8,10 +8,15 @@ import { getAudioContext } from './context';
  * and drop the decoded buffer as soon as analysis finishes (see useAudioEngine).
  */
 export async function decodeReferenceFile(file: File): Promise<AudioBuffer> {
+  if (!file.size || file.size > 10 * 1024 * 1024) throw new Error('Choose an audio file under 10 MB.');
   const arrayBuffer = await file.arrayBuffer();
   const ctx = getAudioContext();
   // decodeAudioData detaches/copies internally; we don't retain arrayBuffer after this.
-  return ctx.decodeAudioData(arrayBuffer.slice(0));
+  let decoded: AudioBuffer;
+  try { decoded = await ctx.decodeAudioData(arrayBuffer); }
+  catch { throw new Error('Could not read this file. Try WAV or MP3.'); }
+  if (decoded.duration > 10) throw new Error('Use a one-shot reference of 10 seconds or less.');
+  return decoded;
 }
 
 function toMono(buffer: AudioBuffer): Float32Array {
@@ -97,7 +102,7 @@ function spectralCentroid(mono: Float32Array, sampleRate: number, startSample: n
     windowed[i] = mono[startSample + i] * w;
   }
 
-  const numBins = Math.min(256, Math.floor(n / 2));
+  const numBins = Math.floor(n / 2);
   let weightedSum = 0;
   let magSum = 0;
   for (let k = 1; k < numBins; k++) {
@@ -129,7 +134,9 @@ export function analyzeReference(buffer: AudioBuffer, fileName: string): Referen
       peakIdx = i;
     }
   }
-  const attackSec = times[peakIdx] ?? 0.005;
+  if (peakVal < .00001) throw new Error('This reference is silent. Choose an audible sound.');
+  const onsetIdx = values.findIndex(v => v >= peakVal * .025);
+  const attackSec = Math.max(0, (times[peakIdx] ?? 0) - (times[Math.max(0, onsetIdx)] ?? 0));
 
   const decayTarget = peakVal * 0.1; // -20dB
   let decayIdx = values.length - 1;
@@ -139,7 +146,7 @@ export function analyzeReference(buffer: AudioBuffer, fileName: string): Referen
       break;
     }
   }
-  const decaySec = Math.max(0.02, (times[decayIdx] ?? buffer.duration) - attackSec);
+  const decaySec = Math.max(0.02, (times[decayIdx] ?? buffer.duration) - (times[peakIdx] ?? 0));
 
   const peakSample = Math.floor((times[peakIdx] ?? 0) * sampleRate);
   // Sample a bit past the peak for pitch detection — right at the peak, a

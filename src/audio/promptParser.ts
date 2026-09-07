@@ -19,6 +19,14 @@ interface LexEntry {
 }
 
 const LEXICON: Record<string, LexEntry> = {
+  'no distortion': { deltas: { distortion: -.85, grit: -.85 } },
+  'without distortion': { deltas: { distortion: -.85, grit: -.85 } },
+  distortion: { deltas: { distortion: .5 } },
+  saturation: { deltas: { distortion: .4 } },
+  open: { deltas: { decay: .4 } },
+  closed: { deltas: { decay: -.3 } },
+  'soft attack': { deltas: { attack: -.4 } },
+  'sharp attack': { deltas: { attack: .4 } },
   // ---- brightness / tone -------------------------------------------------
   dark: { deltas: { tone: -0.32 }, pitch: -1 },
   moody: { deltas: { tone: -0.22, resonance: 0.1 } },
@@ -162,7 +170,7 @@ const MODIFIERS: Record<string, number> = {
   'a little': 0.45,
   too: 1.3,
   more: 1.35,
-  less: 0.5,
+  less: -0.5,
   barely: 0.35,
 };
 
@@ -202,7 +210,7 @@ export function interpretPrompt(prompt: string): PromptInterpretation {
       i++;
       continue;
     }
-    if (NEGATIONS.has(word)) {
+    if (NEGATIONS.has(word) && !(twoGram && LEXICON[twoGram])) {
       pendingNegate = -1;
       i++;
       continue;
@@ -243,5 +251,13 @@ export function interpretPrompt(prompt: string): PromptInterpretation {
   }
   pitchBiasSemitones = Math.max(-7, Math.min(7, pitchBiasSemitones));
 
-  return { deltas, pitchBiasSemitones, matchedTokens };
+  const note = prompt.match(/\b([a-g])([#b]?)([0-5])\b/i);
+  let absolutePitchHz: number | undefined;
+  if (note) {
+    const semitone = ({ c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11 } as Record<string, number>)[note[1].toLowerCase()];
+    const midi = (Number(note[3]) + 1) * 12 + semitone + (note[2] === '#' ? 1 : note[2] === 'b' ? -1 : 0);
+    absolutePitchHz = 440 * 2 ** ((midi - 69) / 12);
+    matchedTokens.push(note[0].toUpperCase());
+  }
+  return { deltas, pitchBiasSemitones, matchedTokens, absolutePitchHz };
 }

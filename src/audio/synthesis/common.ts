@@ -11,7 +11,7 @@ export function makeOfflineCtx(durationSec: number, sampleRate = 44100): Offline
 /** Exponential-feeling saturation curve for WaveShaperNode. amount: 0..1 */
 export function makeDistortionCurve(amount: number, samples = 1024): Float32Array<ArrayBuffer> {
   const curve = new Float32Array(samples);
-  const k = amount * 60 + 0.0001; // drive
+  const k = amount * amount * 12; // low settings preserve dynamics; high settings add weight
   for (let i = 0; i < samples; i++) {
     const x = (i / (samples - 1)) * 2 - 1;
     curve[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
@@ -106,7 +106,7 @@ export function applyAD(
   curve: 'exp' | 'lin' = 'exp'
 ): void {
   const g = gain.gain;
-  const a = Math.max(0.0015, attackSec);
+  const a = Math.max(0.0003, attackSec);
   const d = Math.max(0.005, decaySec);
   g.cancelScheduledValues(startTime);
   g.setValueAtTime(0.0001, startTime);

@@ -28,12 +28,12 @@ export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): v
   const rng = mulberry32(recipe.seed);
   const t0 = 0.001;
 
-  const attackSec = lerp(0.0008, 0.02, params.attack);
+  const attackSec = lerp(0.02, 0.0008, params.attack);
   // Same two-stage shape as the 808 (see applyPunchDecay), just faster/deeper —
   // kicks punch harder and settle lower before their (much shorter) tail.
   const punchDecaySec = lerp(0.016, 0.003, params.punch) * randRange(rng, 0.85, 1.15);
   const sustainFrac = lerp(0.32, 0.15, params.punch);
-  const tailDecaySec = kickTailDecaySec(params.decay, clamp(durationSec - attackSec - 0.03, 0.1, 0.6));
+  const tailDecaySec = kickTailDecaySec(params.decay, 0.65);
   const glideAmount = lerp(2, 7, params.punch) * randRange(rng, 0.9, 1.1);
   const glideSec = lerp(0.01, 0.06, 1 - params.punch * 0.5) * randRange(rng, 0.85, 1.15);
 
@@ -69,14 +69,14 @@ export function synthesizeKick(ctx: OfflineAudioContext, recipe: SoundRecipe): v
   const noiseBuf = makeNoiseBuffer(ctx, 0.03, rng);
   const click = noiseSource(ctx, noiseBuf);
   const clickFilter = ctx.createBiquadFilter();
-  clickFilter.type = 'lowpass';
-  clickFilter.frequency.value = lerp(140, 420, params.tone) * randRange(rng, 0.95, 1.05);
+  clickFilter.type = 'bandpass';
+  clickFilter.frequency.value = lerp(700, 3800, params.tone) * randRange(rng, 0.95, 1.05);
   clickFilter.Q.value = 0.9;
   const clickGain = ctx.createGain();
   click.connect(clickFilter);
   clickFilter.connect(clickGain);
   clickGain.connect(preColor);
-  applyAD(clickGain, t0, 0.45 + 0.55 * params.punch, 0.0008, 0.02, 'exp');
+  applyAD(clickGain, t0, 0.08 + 0.24 * params.punch, attackSec, 0.012, 'exp');
   click.start(t0);
   click.stop(t0 + 0.04);
 }

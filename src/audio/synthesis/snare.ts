@@ -20,7 +20,7 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   const rng = mulberry32(recipe.seed);
   const t0 = 0.001;
 
-  const attackSec = lerp(0.0005, 0.006, params.attack);
+  const attackSec = lerp(0.012, 0.0005, params.attack);
   const decaySec = snareDecaySec(params.decay);
 
   const master = ctx.createGain();
@@ -44,7 +44,7 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
 
   // Snare wires: bandpassed noise carries most of the sound's energy — bright, forward, snappy.
   const noiseDur = decaySec + 0.06;
-  const noiseBuf = makeNoiseBuffer(ctx, noiseDur, rng);
+  const noiseBuf = makeNoiseBuffer(ctx, noiseDur, mulberry32(recipe.seed ^ 0x4f21));
   const noise = noiseSource(ctx, noiseBuf);
   const bandpass = ctx.createBiquadFilter();
   bandpass.type = 'bandpass';
@@ -65,7 +65,7 @@ export function synthesizeSnare(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   // Extra transient crack on top for punch — the "snap" trap snares lean on.
   if (params.punch > 0.05) {
     const crackDur = 0.02;
-    const crackBuf = makeNoiseBuffer(ctx, crackDur, rng);
+    const crackBuf = makeNoiseBuffer(ctx, crackDur, mulberry32(recipe.seed ^ 0x1ad3));
     const crack = noiseSource(ctx, crackBuf);
     const crackFilter = ctx.createBiquadFilter();
     crackFilter.type = 'highpass';

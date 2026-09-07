@@ -6,6 +6,22 @@ Everything happens in the browser: prompt interpretation, sound synthesis, refer
 
 ## How it works
 
+### Studio update
+
+- Real Three.js chrome resonator with locally generated studio lighting, pointer movement, and animation driven by the actual playback signal. Motion can be paused and respects reduced-motion preferences.
+- Three controlled takes: Original follows the prompt center, Tighter and Fuller explore nearby settings without random pitch drift.
+- Corrected attack direction, gentler saturation, more distinct kick transients, improved 808 pitch envelopes, and independent seeded snare layers.
+- Note prompts such as `F1`, plus a ±12-semitone pitch control. “No distortion,” “less distorted,” and “no tail” are recognized.
+- Mono 24-bit WAV export; MP3 encoding runs in a worker so it does not freeze the scene.
+- Generation/refinement/reference request guards prevent stale asynchronous results from replacing the current sound. Downloads wait for the displayed edits to finish.
+- References are limited to 10 MB and 10 seconds, processed locally, and rejected if silent.
+
+### Verification
+
+`npm run build` checks types and produces the static site. `npm test` runs the browser workflow and DSP regression checks. Tests use desktop Chrome on macOS by default; set `CHROME_PATH` for another installation. The test server starts automatically.
+
+Tests cover all four instruments, selection, playback, parameter editing, WAV and MP3 download, responsive overflow, prompt interpretation, tuning, clipping, endpoint silence, repeatable rendering within floating-point tolerance, recipe identity, and WAV headers. Musical taste and reference similarity still need producer listening feedback.
+
 - **Synthesis** — Each instrument (808, kick, hi-hat, snare) has a dedicated procedural engine built on the Web Audio API (`src/audio/synthesis/`): oscillators with pitch envelopes, filtered noise, distortion via wave-shaping. No samples, no neural generation.
 - **Prompt parsing** — A large hand-tuned lexicon (`src/audio/promptParser.ts`, 150+ entries) maps single words, multi-word phrases ("long tail", "boom bap"), and named regional/style archetypes (memphis, phonk, drill, opium...) onto deltas across all seven synthesis params. A single left-to-right pass also tracks intensity modifiers ("very", "slightly", "not too") and negation ("not", "without"), so "very dark" and "not too bright" push the same param in correctly different amounts. Inspectable and predictable rather than a black box — no network call, no LLM.
 - **Reference audio (optional)** — If you upload a sound, it's decoded and analyzed entirely on-device (`src/audio/referenceAnalysis.ts`): fundamental pitch via autocorrelation, brightness via spectral centroid, attack/decay via its amplitude envelope. Those numbers nudge the synthesis recipe — this is not sample cloning. The decoded audio is discarded immediately after analysis; only a few numbers are kept in memory, and only for the current session.

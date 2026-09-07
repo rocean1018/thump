@@ -17,8 +17,7 @@ const ENGINES = {
 export async function renderRecipe(recipe: SoundRecipe): Promise<AudioBuffer> {
   const ctx = makeOfflineCtx(recipe.durationSec);
   const engine = ENGINES[recipe.instrument];
-  engine(ctx, recipe);
+  engine(ctx, { ...recipe, basePitchHz: recipe.basePitchHz * 2 ** (((recipe.params.pitch ?? .5) - .5) * 24 / 12) });
   const rendered = await ctx.startRendering();
-  const normalized = normalizeBuffer(rendered);
-  return trimSilence(normalized);
+  return normalizeBuffer(trimSilence(rendered));
 }

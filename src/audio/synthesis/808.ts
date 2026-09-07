@@ -22,15 +22,15 @@ export function synthesize808(ctx: OfflineAudioContext, recipe: SoundRecipe): vo
   const rng = mulberry32(recipe.seed);
   const t0 = 0.001;
 
-  const attackSec = lerp(0.001, 0.035, params.attack);
+  const attackSec = lerp(0.035, 0.001, params.attack);
   // Measured from a reference kit: real 808s drop from peak to ~30% within a
   // few ms to tens of ms (the "punch"), then decay that sustained level over a
   // much longer tail — not one smooth exponential from the peak.
   const punchDecaySec = lerp(0.03, 0.006, params.punch) * randRange(rng, 0.85, 1.15);
   const sustainFrac = lerp(0.4, 0.22, params.punch);
-  const tailDecaySec = lerp(0.25, clamp(durationSec - attackSec - 0.05, 0.3, 3.5), params.decay);
-  const glideAmount = lerp(1.6, 5.5, params.punch) * randRange(rng, 0.9, 1.1);
-  const glideSec = lerp(0.015, 0.09, 1 - params.punch * 0.6) * randRange(rng, 0.85, 1.15);
+  const tailDecaySec = lerp(0.3, 3.1, params.decay);
+  const glideAmount = lerp(1.15, 2.8, params.punch) * randRange(rng, 0.97, 1.03);
+  const glideSec = lerp(0.05, 0.018, params.punch) * randRange(rng, 0.9, 1.1);
 
   const master = ctx.createGain();
   master.gain.value = 1;
@@ -96,6 +96,6 @@ export function synthesize808(ctx: OfflineAudioContext, recipe: SoundRecipe): vo
 }
 
 export function make808Recipe(seed: number, basePitchHz: number, params: SoundRecipe['params']): SoundRecipe {
-  const durationSec = lerp(0.6, 3.6, params.decay) + 0.4;
+  const durationSec = lerp(0.3, 3.1, params.decay) + 0.65;
   return { id: `808-${seed}`, instrument: '808', seed, params, basePitchHz, durationSec };
 }

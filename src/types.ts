@@ -15,6 +15,7 @@ export const INSTRUMENTS: { id: Instrument; label: string; blurb: string }[] = [
  * changes when these move, only their mapped outputs do.
  */
 export interface CreativeParams {
+  pitch: number; // 0..1 maps to -12..+12 semitones; .5 is original pitch
   attack: number; // 0 = softest onset, 1 = instant/hardest transient
   decay: number; // 0 = short/tight, 1 = long tail
   punch: number; // 0 = none, 1 = maximum transient thump/click
@@ -25,6 +26,7 @@ export interface CreativeParams {
 }
 
 export const DEFAULT_CREATIVE_PARAMS: CreativeParams = {
+  pitch: 0.5,
   attack: 0.5,
   decay: 0.5,
   punch: 0.5,
@@ -75,6 +77,7 @@ export interface ReferenceAnalysis {
 }
 
 export interface PromptInterpretation {
+  absolutePitchHz?: number;
   /** Deltas in -1..1 applied on top of CreativeParams defaults. */
   deltas: Partial<CreativeParams>;
   pitchBiasSemitones: number;

@@ -22,7 +22,7 @@ export function synthesizeHihat(ctx: OfflineAudioContext, recipe: SoundRecipe): 
   const rng = mulberry32(recipe.seed);
   const t0 = 0.001;
 
-  const attackSec = lerp(0.0004, 0.004, params.attack);
+  const attackSec = lerp(0.006, 0.0004, params.attack);
   const decaySec = hihatDecaySec(params.decay);
 
   const master = ctx.createGain();

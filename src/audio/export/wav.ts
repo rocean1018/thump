@@ -1,9 +1,9 @@
-/** Minimal, dependency-free 16-bit PCM WAV encoder. */
+/** Mono 24-bit PCM WAV, preserving quiet drum tails. */
 export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   const numChannels = 1;
   const sampleRate = buffer.sampleRate;
   const data = buffer.getChannelData(0);
-  const bytesPerSample = 2;
+  const bytesPerSample = 3;
   const blockAlign = numChannels * bytesPerSample;
   const dataSize = data.length * bytesPerSample;
   const bufferSize = 44 + dataSize;
@@ -28,8 +28,11 @@ export function audioBufferToWavBlob(buffer: AudioBuffer): Blob {
   let offset = 44;
   for (let i = 0; i < data.length; i++) {
     const s = Math.max(-1, Math.min(1, data[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
-    offset += 2;
+    const sample = Math.round(s < 0 ? s * 0x800000 : s * 0x7fffff);
+    view.setUint8(offset, sample & 255);
+    view.setUint8(offset + 1, (sample >> 8) & 255);
+    view.setUint8(offset + 2, (sample >> 16) & 255);
+    offset += 3;
   }
 
   return new Blob([arrayBuffer], { type: 'audio/wav' });

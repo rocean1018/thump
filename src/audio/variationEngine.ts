@@ -90,6 +90,7 @@ export function computeCenter(
   }
 
   const clamped = { ...params };
+  if (prompt?.absolutePitchHz && instrument !== 'hihat') basePitchHz = clamp(prompt.absolutePitchHz, 25, 1000);
   for (const key of PARAM_KEYS) clamped[key] = clamp(params[key], 0, 1);
 
   return { params: clamped, basePitchHz };
@@ -101,12 +102,12 @@ export function computeCenter(
 // Random jitter is layered on top per-slot so repeated regenerations don't just
 // reproduce the same three archetypes.
 const SLOT_BIAS: (Record<keyof CreativeParams, number> & { pitchSemi: number })[] = [
-  { attack: -0.16, decay: -0.22, punch: 0.14, tone: -0.16, distortion: -0.05, grit: 0.1, resonance: 0.05, pitchSemi: -2.2 },
-  { attack: 0, decay: 0, punch: 0, tone: 0, distortion: 0, grit: 0, resonance: 0, pitchSemi: 0 },
-  { attack: 0.14, decay: 0.26, punch: -0.1, tone: 0.18, distortion: 0.1, grit: -0.08, resonance: 0.15, pitchSemi: 2.6 },
+  { pitch: 0, attack: 0, decay: 0, punch: 0, tone: 0, distortion: 0, grit: 0, resonance: 0, pitchSemi: 0 },
+  { pitch: 0, attack: .08, decay: -.12, punch: .1, tone: .04, distortion: 0, grit: 0, resonance: -.05, pitchSemi: 0 },
+  { pitch: 0, attack: -.04, decay: .12, punch: -.06, tone: -.08, distortion: .04, grit: 0, resonance: .05, pitchSemi: 0 },
 ];
 
-const JITTER = 0.14;
+const JITTER = 0.045;
 const PITCH_JITTER_SEMITONES = 1.8;
 
 /** Produces 3 distinct-but-related recipes around a center point, seeded for reproducibility. */
@@ -130,10 +131,16 @@ export function generateVariations(
     const vRng = mulberry32(variationSeed);
     const bias = SLOT_BIAS[i];
 
-    const jitter = (key: keyof CreativeParams, biasValue: number) =>
-      clamp(center.params[key] + biasValue * spreadScale + randRange(vRng, -JITTER, JITTER), 0, 1);
+    const jitter = (key: keyof CreativeParams, biasValue: number) => {
+      if (i === 0) return center.params[key];
+      // Explicit prompt attributes constrain the exploration; clean stays clean.
+      if ((key === 'distortion' || key === 'grit') && center.params[key] === 0) return 0;
+      const strength = prompt?.deltas[key] !== undefined ? .25 : 1;
+      return clamp(center.params[key] + (biasValue * spreadScale + randRange(vRng, -JITTER, JITTER)) * strength, 0, 1);
+    };
 
     const params: CreativeParams = {
+      pitch: .5,
       attack: jitter('attack', bias.attack),
       decay: jitter('decay', bias.decay),
       punch: jitter('punch', bias.punch),
@@ -143,8 +150,8 @@ export function generateVariations(
       resonance: jitter('resonance', bias.resonance),
     };
 
-    const pitchSemitones = bias.pitchSemi * pitchSpreadScale + randRange(vRng, -PITCH_JITTER_SEMITONES, PITCH_JITTER_SEMITONES);
-    const basePitchHz = center.basePitchHz * Math.pow(2, pitchSemitones / 12);
+    // Stable tuning across the audition set; shape is what varies.
+    const basePitchHz = center.basePitchHz;
 
     return factory(variationSeed, basePitchHz, params);
   });

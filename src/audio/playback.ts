@@ -3,6 +3,9 @@ import { getAudioContext } from './context';
 let masterGain: GainNode | null = null;
 let analyser: AnalyserNode | null = null;
 
+/** Visuals must never create/resume an AudioContext before a user gesture. */
+export function peekAnalyser(): AnalyserNode | null { return analyser; }
+
 /** Shared master chain: every played buffer routes through this so the
  * audio-reactive background always reflects whatever is actually audible. */
 export function getMasterChain(): { gain: GainNode; analyser: AnalyserNode } {
@@ -11,7 +14,7 @@ export function getMasterChain(): { gain: GainNode; analyser: AnalyserNode } {
     masterGain = ctx.createGain();
     masterGain.gain.value = 0.9;
     analyser = ctx.createAnalyser();
-    analyser.fftSize = 256;
+    analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0.75;
     masterGain.connect(analyser);
     analyser.connect(ctx.destination);

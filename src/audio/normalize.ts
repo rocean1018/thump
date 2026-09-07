@@ -5,9 +5,12 @@
  */
 export function normalizeBuffer(buffer: AudioBuffer, targetPeak = 0.95): AudioBuffer {
   const data = buffer.getChannelData(0);
+  let mean = 0;
+  for (const sample of data) mean += sample;
+  mean /= Math.max(1, data.length);
   let peak = 0;
   for (let i = 0; i < data.length; i++) {
-    const abs = Math.abs(data[i]);
+    const abs = Math.abs(data[i] - mean);
     if (abs > peak) peak = abs;
   }
   const out = new AudioBuffer({ length: data.length, numberOfChannels: 1, sampleRate: buffer.sampleRate });
@@ -17,8 +20,9 @@ export function normalizeBuffer(buffer: AudioBuffer, targetPeak = 0.95): AudioBu
   // Micro fade-out over the last ~8ms to prevent a clicking tail edge.
   const fadeSamples = Math.min(data.length, Math.floor(buffer.sampleRate * 0.008));
   for (let i = 0; i < data.length; i++) {
-    let sample = data[i] * gain;
-    const distFromEnd = data.length - i;
+    let sample = (data[i] - mean) * gain;
+    sample *= Math.min(1, i / Math.max(1, Math.floor(buffer.sampleRate * .0003)));
+    const distFromEnd = data.length - 1 - i;
     if (distFromEnd <= fadeSamples) {
       sample *= distFromEnd / fadeSamples;
     }
@@ -38,7 +42,7 @@ export function trimSilence(buffer: AudioBuffer, threshold = 0.0008, tailPadSec 
     }
   }
   const pad = Math.floor(buffer.sampleRate * tailPadSec);
-  const end = Math.min(data.length, lastLoud + pad);
+  const end = Math.max(1, Math.min(data.length, lastLoud + pad + 1));
   if (end >= data.length - 1) return buffer;
   const out = new AudioBuffer({ length: end, numberOfChannels: 1, sampleRate: buffer.sampleRate });
   out.getChannelData(0).set(data.subarray(0, end));
