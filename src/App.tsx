@@ -3,6 +3,7 @@ import { INSTRUMENTS, DEFAULT_CREATIVE_PARAMS, type Instrument } from './types';
 import { useAudioEngine } from './hooks/useAudioEngine';
 import { usePlayback } from './hooks/usePlayback';
 import { interpretPrompt } from './audio/promptParser';
+import { chooseCharacter, getCharacter } from './audio/characters';
 import ReferenceUpload from './components/ReferenceUpload';
 import RefinePanel from './components/RefinePanel';
 import ExportPanel from './components/ExportPanel';
@@ -11,10 +12,16 @@ import Icon from './components/Icon';
 
 const SoundSculpture = lazy(() => import('./components/SoundSculpture'));
 const EXAMPLES: Record<Instrument, string[]> = {
-  '808': ['Deep, clean sub in F1 with a long tail', 'Short, distorted underground 808', 'Warm and smooth, no distortion'],
-  kick: ['Tight, punchy kick with a crisp attack', 'Deep and round with a soft attack', 'Hard, clipped drill kick'],
+  '808': ['Pure sine sub in F1, sustained, clean, no punch', 'Short clipped punchy 808 in F1', 'Reese 808, detuned and growling, long, F1'],
+  kick: ['Deep round kick with a soft attack', 'Clicky tight kick with a hard attack', 'Hard clipped distorted kick'],
   hihat: ['Crisp closed hat, short and clean', 'Airy open hat with a long tail', 'Dark, dusty Memphis hat'],
-  snare: ['Tight, snappy trap snare', 'Bright and metallic with a short tail', 'Warm, crunchy boom bap snare'],
+  snare: ['Dry rimshot snare', 'Layered clap snare with a long tail', 'Full body warm snare'],
+};
+const EXAMPLE_LABELS: Record<Instrument, string[]> = {
+  '808': ['Pure sub', 'Clipped punch', 'Reese'],
+  kick: ['Round', 'Click', 'Clipped'],
+  hihat: ['Closed', 'Open', 'Dusty'],
+  snare: ['Rimshot', 'Clap', 'Full body'],
 };
 const LABELS = ['Original', 'Tighter', 'Fuller'];
 
@@ -27,6 +34,8 @@ export default function App() {
   const selected = engine.selectedIndex !== null ? engine.variations[engine.selectedIndex] : null;
   const selectedId = selected?.recipe.id ?? null;
   const tokens = interpretPrompt(engine.prompt).matchedTokens;
+  const intent = chooseCharacter(engine.instrument, engine.prompt);
+  const understood = [...new Set([...intent.matches, ...tokens.filter(t => t !== '808')])];
   const completed = engine.variations.filter(Boolean).length;
   const params = engine.refineParams ?? DEFAULT_CREATIVE_PARAMS;
   function generate() { playback.stop(); engine.generate(); }
@@ -55,7 +64,8 @@ export default function App() {
               <textarea id="sound-prompt" value={engine.prompt} maxLength={400} disabled={isGenerating} onChange={(e) => engine.setPrompt(e.target.value)} placeholder={EXAMPLES[engine.instrument][0]} onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !isGenerating && engine.referenceStatus !== 'analyzing') generate(); }} />
               <div className="prompt-bottom"><span><span className="tiny-dot" />{tokens.length ? `${tokens.length} sound ${tokens.length === 1 ? 'detail' : 'details'} recognized` : 'Your words shape the sound'}</span><span>{engine.prompt.length}/400</span></div>
             </div>
-            <div className="prompt-examples"><span>Try a direction</span><div>{EXAMPLES[engine.instrument].map((example, i) => <button type="button" key={example} disabled={isGenerating} title={example} onClick={() => engine.setPrompt(example)}>{['Clean & deep', 'Hard & tight', 'Something different'][i]}<Icon name="arrow-small" /></button>)}</div></div>
+            <div className="prompt-interpretation" aria-live="polite"><strong>{intent.character.label}</strong><span>{engine.prompt.trim() && !understood.length ? 'No sound details matched. Try a direction below, then add tone, length, or pitch.' : understood.length ? 'Using: ' + understood.slice(0,7).join(' · ') : 'Default voice. Choose a direction or describe your own.'}</span></div>
+            <div className="prompt-examples"><span>Try a different sound</span><div>{EXAMPLES[engine.instrument].map((example, i) => <button type="button" key={example} disabled={isGenerating} title={example} onClick={() => engine.setPrompt(example)}>{EXAMPLE_LABELS[engine.instrument][i]}<Icon name="arrow-small" /></button>)}</div></div>
             <ReferenceUpload status={engine.referenceStatus} analysis={engine.referenceAnalysis} error={engine.referenceError} onFile={engine.handleReferenceFile} disabled={isGenerating} />
             <button className="generate-button" type="button" onClick={generate} disabled={isGenerating || engine.referenceStatus === 'analyzing'}><Icon name={isGenerating ? 'loading' : 'spark'} /><span>{isGenerating ? `Creating sounds · ${completed}/3` : hasResults ? 'Generate again' : 'Generate sounds'}</span><span className="button-arrow">↗</span></button>
             <div className="generation-note" aria-live="polite">{isGenerating ? 'Shaping your three variations…' : '3 variations. Yours to shape.'}<span>⌘ / Ctrl ↵</span></div>
@@ -70,7 +80,7 @@ export default function App() {
               <span className="scene-coordinate top-left" aria-hidden="true">+</span><span className="scene-coordinate bottom-right" aria-hidden="true">+</span>
               <div className="scene-caption"><span>{engine.instrument === '808' ? 'LOW END / HIGH IMPACT' : engine.instrument === 'kick' ? 'THE HEARTBEAT' : engine.instrument === 'hihat' ? 'TEXTURE / MOVEMENT' : 'CUT THROUGH'}</span><span>01 — 04</span></div>
             </div>
-            <div className="results-heading"><h2>Your variations <span>{hasResults ? '03' : '—'}</span></h2><span>{hasResults ? 'Play to audition. Select to shape.' : 'A little different. All you.'}</span></div>
+            <div className="results-heading"><h2>Your variations <span>{hasResults ? '03' : '—'}</span></h2><span>{hasResults ? getCharacter(engine.variations.find(Boolean)!.recipe.instrument, engine.variations.find(Boolean)!.recipe.character).label + ' · Play to audition' : 'A little different. All you.'}</span></div>
             <div className="variation-grid">
               {engine.variations.map((v, i) => <article key={i} className={`variation-card ${engine.selectedIndex === i ? 'selected' : ''} ${!v ? 'empty' : ''}`}>
                 <div className="variation-top"><span className="variation-number">0{i + 1}</span><span className="variation-name">{LABELS[i]}</span>{engine.selectedIndex === i && <span className="selected-dot" aria-label="Selected" />}</div>

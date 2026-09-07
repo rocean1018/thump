@@ -12,12 +12,13 @@ export default function SoundSculpture(props: Props) {
     const host = mount.current;
     if (!host) return;
     let renderer: THREE.WebGLRenderer;
-    try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'low-power' }); }
+    try { renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: 'default' }); }
     catch { setUnavailable(true); return; }
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    let pixelRatio = Math.min(devicePixelRatio, 1);
+    renderer.setPixelRatio(pixelRatio);
     renderer.setClearColor(0x000000, 0);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.4;
+    renderer.toneMappingExposure = .9;
     host.appendChild(renderer.domElement);
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(34, 1, .1, 30);
@@ -28,35 +29,39 @@ export default function SoundSculpture(props: Props) {
     scene.environment = env.texture;
     room.dispose(); pmrem.dispose();
     const assembly = new THREE.Group(); scene.add(assembly);
-    const geometry = new THREE.TorusGeometry(1.16, .37, 48, 384);
+    const geometry = new THREE.TorusGeometry(1.16, .37, 20, 192);
     const position = geometry.attributes.position;
     for (let i = 0; i < position.count; i++) {
       const x = position.getX(i), y = position.getY(i), z = position.getZ(i);
       const a = Math.atan2(y, x), cX = Math.cos(a) * 1.16, cY = Math.sin(a) * 1.16;
-      const rib = 1 + .075 * Math.cos(a * 96);
+      const rib = 1 + .075 * Math.cos(a * 48);
       position.setXYZ(i, cX + (x - cX) * rib, cY + (y - cY) * rib, z * rib);
     }
     geometry.computeVertexNormals();
     const material = new THREE.MeshStandardMaterial({ color: 0xe5e4df, metalness: 1, roughness: .23, envMapIntensity: 1.3 });
     const body = new THREE.Mesh(geometry, material); assembly.add(body);
-    const rimGeometry = new THREE.TorusGeometry(.795, .025, 12, 128);
+    const rimGeometry = new THREE.TorusGeometry(.795, .025, 8, 96);
     const rimMaterial = new THREE.MeshStandardMaterial({ color: 0xff7048, emissive: 0xcc3812, emissiveIntensity: .22, roughness: .3, metalness: .7 });
     const rim = new THREE.Mesh(rimGeometry, rimMaterial); rim.position.z = .05; assembly.add(rim);
-    const insetGeometry = new THREE.TorusGeometry(.68, .035, 12, 128);
+    const insetGeometry = new THREE.TorusGeometry(.68, .035, 8, 96);
     const inset = new THREE.Mesh(insetGeometry, material); inset.position.z = -.17; assembly.add(inset);
-    const backGeometry = new THREE.TorusGeometry(1.2, .025, 12, 160);
+    const backGeometry = new THREE.TorusGeometry(1.2, .025, 8, 96);
     const back = new THREE.Mesh(backGeometry, material); back.position.z = -.43; assembly.add(back);
     const key = new THREE.DirectionalLight(0xfff7e8, 4); key.position.set(-3, 5, 5); scene.add(key);
     const fill = new THREE.DirectionalLight(0xa4b2c3, 2); fill.position.set(4, -1, 3); scene.add(fill);
     const warm = new THREE.PointLight(0xff5c23, 9, 10); warm.position.set(-2, -2, 2); scene.add(warm);
+    let needsFrame = true;
     const resize = () => {
       const { width, height } = host.getBoundingClientRect();
       if (!width || !height) return;
-      renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix();
+      renderer.setSize(width, height); camera.aspect = width / height; camera.updateProjectionMatrix(); needsFrame = true;
     };
     const observer = new ResizeObserver(resize); observer.observe(host); resize();
     const reduced = matchMedia('(prefers-reduced-motion: reduce)');
-    let frame = 0, last = 0, time = 0, energy = 0;
+    const motionChange = () => { needsFrame = true; };
+    reduced.addEventListener('change', motionChange);
+    let frame = 0, last = 0, time = 0, energy = 0, slowFrames = 0;
+    let inView = true, lastState: Props | null = null;
     let samples = new Float32Array(2048);
     const pointer = { x: 0, y: 0 };
     const move = (e: PointerEvent) => { const r = host.getBoundingClientRect(); pointer.x = (e.clientX - r.left) / r.width - .5; pointer.y = (e.clientY - r.top) / r.height - .5; };
@@ -64,11 +69,18 @@ export default function SoundSculpture(props: Props) {
     host.addEventListener('pointermove', move); host.addEventListener('pointerleave', leave);
     const render = (now: number) => {
       frame = requestAnimationFrame(render);
-      if (document.hidden || now - last < 1000 / 30) return;
-      const dt = Math.min((now - last) / 1000, .05); last = now;
+      if (document.hidden || !inView) { last = now; return; }
+      const elapsed = now - last;
+      const dt = Math.min(elapsed / 1000, .08); last = now;
       const { instrument, params, generating, motion } = state.current;
       const animate = motion && !reduced.matches;
+      if (!animate && lastState === state.current && !needsFrame) return;
+      lastState = state.current;
+      needsFrame = false;
       if (animate) time += dt;
+      // Lower fill cost on slower devices; don't oscillate resolution every frame.
+      slowFrames = elapsed > 25 && elapsed < 100 ? slowFrames + 1 : Math.max(0, slowFrames - 1);
+      if (slowFrames > 40 && pixelRatio > .75) { pixelRatio = .75; renderer.setPixelRatio(pixelRatio); resize(); slowFrames = 0; }
       let rms = 0;
       const analyser = peekAnalyser();
       if (analyser && animate) {
@@ -77,21 +89,27 @@ export default function SoundSculpture(props: Props) {
         for (let i = 0; i < samples.length; i++) rms += samples[i] ** 2;
         rms = Math.sqrt(rms / samples.length);
       }
-      energy += (rms - energy) * (rms > energy ? .75 : .2);
-      const pulse = animate ? energy * .65 + (generating ? .018 * Math.sin(time * 10) : 0) : 0;
+      const target = Math.min(1, Math.sqrt(rms) * 2.1);
+      energy += (target - energy) * (1 - Math.exp(-dt / (target > energy ? .018 : .2)));
+      const pulse = animate ? energy * .19 + (generating ? .04 * Math.sin(time * 9) : 0) : 0;
       const shape = instrument === 'hihat' ? .57 : instrument === 'snare' ? .8 : 1;
-      assembly.rotation.set(.35 + (animate ? Math.sin(time * .18) * .13 + pointer.y * .13 : 0), -.48 + (animate ? Math.sin(time * .13) * .26 + pointer.x * .25 : 0), -.24 + (animate ? time * .025 : 0));
+      assembly.rotation.set(.35 + (animate ? Math.sin(time * .55) * .28 + pointer.y * .35 + energy * .18 : 0), -.48 + (animate ? Math.sin(time * .4) * .48 + pointer.x * .55 : 0), -.24 + (animate ? time * .16 : 0));
       assembly.scale.setScalar(1 + pulse);
-      body.scale.z += ((shape + params.decay * .12) - body.scale.z) * .12;
-      rim.scale.setScalar(1 + pulse * .8); rimMaterial.emissiveIntensity = .22 + energy * 2 + params.distortion * .35;
+      body.scale.z = shape + params.decay * .12 + pulse * .8;
+      inset.rotation.y = animate ? Math.sin(time * .8) * .4 + energy * .3 : 0;
+      back.rotation.x = animate ? Math.sin(time * .6) * .22 : 0;
+      rim.scale.setScalar(1 + pulse * .8); rimMaterial.emissiveIntensity = .22 + energy * 1.2 + params.distortion * .35;
       material.roughness = .17 + params.grit * .2;
       renderer.render(scene, camera);
     };
+    const intersection = new IntersectionObserver(([entry]) => { inView = entry.isIntersecting; }, { threshold: 0 });
+    intersection.observe(host);
     frame = requestAnimationFrame(render);
     const lost = (e: Event) => { e.preventDefault(); setUnavailable(true); cancelAnimationFrame(frame); };
     renderer.domElement.addEventListener('webglcontextlost', lost);
     return () => {
-      cancelAnimationFrame(frame); observer.disconnect(); host.removeEventListener('pointermove', move); host.removeEventListener('pointerleave', leave);
+      cancelAnimationFrame(frame); observer.disconnect(); intersection.disconnect(); host.removeEventListener('pointermove', move); host.removeEventListener('pointerleave', leave);
+      reduced.removeEventListener('change', motionChange);
       renderer.domElement.removeEventListener('webglcontextlost', lost);
       geometry.dispose(); rimGeometry.dispose(); insetGeometry.dispose(); backGeometry.dispose(); material.dispose(); rimMaterial.dispose(); env.dispose(); renderer.dispose(); renderer.domElement.remove();
     };

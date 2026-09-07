@@ -19,6 +19,17 @@ interface LexEntry {
 }
 
 const LEXICON: Record<string, LexEntry> = {
+  'no punch': { deltas: { punch: -.85 } },
+  punch: { deltas: { punch: .4 } },
+  'hard attack': { deltas: { attack: .5 } },
+  'slow attack': { deltas: { attack: -.5 } },
+  'fast attack': { deltas: { attack: .5 } },
+  'short decay': { deltas: { decay: -.4 } },
+  'long decay': { deltas: { decay: .4 } },
+  'no grit': { deltas: { grit: -.85 } },
+  grit: { deltas: { grit: .4 } },
+  clicky: { deltas: { tone: .25, punch: .3, attack: .3 } },
+  sizzle: { deltas: { tone: .2, decay: .2 } },
   'no distortion': { deltas: { distortion: -.85, grit: -.85 } },
   'without distortion': { deltas: { distortion: -.85, grit: -.85 } },
   distortion: { deltas: { distortion: .5 } },
@@ -151,7 +162,7 @@ const LEXICON: Record<string, LexEntry> = {
   'cloud rap': { deltas: { tone: 0.15, decay: 0.2, distortion: -0.1 } },
 
   // ---- misc genre-adjacent words -----------------------------------
-  808: { deltas: {}, pitch: -1 },
+  808: { deltas: {} },
   modern: { deltas: { tone: 0.15, punch: 0.1, grit: -0.05 } },
 };
 
@@ -259,5 +270,8 @@ export function interpretPrompt(prompt: string): PromptInterpretation {
     absolutePitchHz = 440 * 2 ** ((midi - 69) / 12);
     matchedTokens.push(note[0].toUpperCase());
   }
-  return { deltas, pitchBiasSemitones, matchedTokens, absolutePitchHz };
+  const duration = prompt.match(/\b(\d+(?:\.\d+)?)\s*(ms|milliseconds?|s|sec(?:onds?)?)\b/i);
+  const decaySeconds = duration ? Math.max(.01,Math.min(4, Number(duration[1]) * (/^m/i.test(duration[2]) ? .001 : 1))) : undefined;
+  if (duration) matchedTokens.push(duration[0]);
+  return { deltas, pitchBiasSemitones, matchedTokens, absolutePitchHz, source: prompt, decaySeconds };
 }

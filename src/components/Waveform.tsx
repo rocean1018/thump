@@ -1,102 +1,53 @@
 import { useEffect, useRef } from 'react';
+interface WaveformProps { buffer: AudioBuffer | null; isPlaying: boolean; color?: string; playedColor?: string; height?: number }
 
-interface WaveformProps {
-  buffer: AudioBuffer | null;
-  isPlaying: boolean;
-  color?: string;
-  playedColor?: string;
-  height?: number;
-}
-
-/** Draws a min/max peak waveform, oscilloscope-style, with a glowing playhead trace. */
-export default function Waveform({
-  buffer,
-  isPlaying,
-  color = 'rgba(79,214,196,0.28)',
-  playedColor = '#d7ff3f',
-  height = 64,
-}: WaveformProps) {
+/** Cache the waveform twice; playback only blits and clips, with no per-bar blur. */
+export default function Waveform({ buffer, isPlaying, color = '#7f8874', playedColor = '#ff7048', height = 64 }: WaveformProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const startTimeRef = useRef<number>(0);
-
+  const layers = useRef<{ normal: HTMLCanvasElement; played: HTMLCanvasElement } | null>(null);
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !buffer) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const cssWidth = canvas.clientWidth || 300;
-    canvas.width = cssWidth * dpr;
-    canvas.height = height * dpr;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const data = buffer.getChannelData(0);
-    const width = canvas.width;
-    const step = Math.max(1, Math.floor(data.length / width));
-    const mid = canvas.height / 2;
-    const peaks: { min: number; max: number }[] = [];
-    for (let x = 0; x < width; x++) {
-      let min = 1;
-      let max = -1;
-      const start = x * step;
-      const end = Math.min(data.length, start + step);
-      for (let i = start; i < end; i++) {
-        const v = data[i];
-        if (v < min) min = v;
-        if (v > max) max = v;
+    if (!canvas) return;
+    const draw = () => {
+      const dpr = Math.min(devicePixelRatio, 1.5);
+      canvas.width = Math.max(1, Math.round(canvas.clientWidth * dpr));
+      canvas.height = Math.round(height * dpr);
+      const normal = document.createElement('canvas'), played = document.createElement('canvas');
+      for (const layer of [normal, played]) { layer.width = canvas.width; layer.height = canvas.height; }
+      const a = normal.getContext('2d')!, b = played.getContext('2d')!;
+      a.fillStyle = color; b.fillStyle = playedColor;
+      if (buffer) {
+        const data = buffer.getChannelData(0), mid = canvas.height / 2;
+        for (let x = 0; x < canvas.width; x += 2) {
+          const start = Math.floor(x / canvas.width * data.length), end = Math.min(data.length, Math.ceil((x+2) / canvas.width * data.length));
+          let lo = 0, hi = 0;
+          for (let i = start; i < end; i++) { lo = Math.min(lo,data[i]); hi = Math.max(hi,data[i]); }
+          for (const ctx of [a,b]) ctx.fillRect(x,mid-hi*mid,1.5,Math.max(1,(hi-lo)*mid));
+        }
       }
-      if (start >= data.length) {
-        min = 0;
-        max = 0;
-      }
-      peaks.push({ min, max });
-    }
-
-    function draw(progress: number) {
-      if (!ctx) return;
-      ctx.clearRect(0, 0, canvas!.width, canvas!.height);
-
-      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(0, mid);
-      ctx.lineTo(width, mid);
-      ctx.stroke();
-
-      const playedX = Math.floor(progress * width);
-      for (let x = 0; x < width; x++) {
-        const { min, max } = peaks[x];
-        const barHeight = Math.max(1, (max - min) * mid);
-        const played = x <= playedX;
-        ctx.shadowBlur = played ? 6 : 0;
-        ctx.shadowColor = playedColor;
-        ctx.fillStyle = played ? playedColor : color;
-        ctx.fillRect(x, mid - Math.max(max * mid, 0.5), 1, barHeight);
-      }
-      ctx.shadowBlur = 0;
-    }
-
-    if (!isPlaying) {
-      draw(0);
-      return;
-    }
-
-    startTimeRef.current = performance.now();
-    const duration = buffer.duration * 1000;
-    function tick() {
-      const elapsed = performance.now() - startTimeRef.current;
-      const progress = Math.min(1, elapsed / duration);
-      draw(progress);
-      if (progress < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      }
-    }
-    tick();
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      layers.current = { normal, played };
+      canvas.getContext('2d')?.drawImage(normal,0,0);
     };
-  }, [buffer, isPlaying, color, playedColor, height]);
-
-  return <canvas ref={canvasRef} className="w-full block" style={{ height }} aria-hidden="true" />;
+    const observer = new ResizeObserver(draw); observer.observe(canvas); draw();
+    return () => observer.disconnect();
+  }, [buffer,color,playedColor,height]);
+  useEffect(() => {
+    const canvas = canvasRef.current, ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+    let frame = 0;
+    const start = performance.now();
+    const tick = () => {
+      const layer = layers.current;
+      if (layer) {
+        ctx.clearRect(0,0,canvas.width,canvas.height); ctx.drawImage(layer.normal,0,0);
+        if (isPlaying && buffer) {
+          const width = Math.min(1,(performance.now()-start)/(buffer.duration*1000)) * canvas.width;
+          ctx.save(); ctx.beginPath(); ctx.rect(0,0,width,canvas.height); ctx.clip(); ctx.drawImage(layer.played,0,0); ctx.restore();
+        }
+      }
+      if (isPlaying && buffer && performance.now()-start < buffer.duration*1000) frame = requestAnimationFrame(tick);
+    };
+    tick(); return () => cancelAnimationFrame(frame);
+  }, [buffer,isPlaying,color,playedColor,height]);
+  return <canvas ref={canvasRef} className="w-full block" style={{height}} aria-hidden="true" />;
 }

@@ -29,7 +29,7 @@ test('desktop studio: four engines, editable variations, WAV and MP3', async ({ 
   expect(await mp3.failure()).toBeNull();
   await page.screenshot({ path: 'test-results/thump-refined.png', fullPage: true });
   await page.setViewportSize({ width: 1024, height: 800 });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
   expect(errors).toEqual([]);
 });
 

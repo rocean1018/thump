@@ -1,11 +1,11 @@
 import type { CreativeParams, Instrument, PromptInterpretation, ReferenceAnalysis, SoundRecipe } from '../types';
-import { DEFAULT_CREATIVE_PARAMS } from '../types';
 import { mulberry32, newSeed, randRange } from './rng';
 import { clamp } from './synthesis/common';
 import { make808Recipe } from './synthesis/808';
 import { makeKickRecipe } from './synthesis/kick';
 import { makeHihatRecipe } from './synthesis/hihat';
 import { makeSnareRecipe } from './synthesis/snare';
+import { chooseCharacter, characterParams, decayParam, type Character } from './characters';
 
 // Measuring a reference kit showed real 808s and kicks actually sit in a
 // similar low register (808s ~29-43Hz, kicks ~38-50Hz) — pitch alone isn't
@@ -20,15 +20,12 @@ const BASE_PITCH_RANGE: Record<Instrument, [number, number]> = {
   snare: [175, 235],
 };
 
-// Reference decay/attack ranges used to map measured seconds into the 0..1 creative
-// scale. decayExponent inverts each engine's decay easing curve (see hihat.ts /
-// snare.ts) so a reference's measured decay lands on the param value that actually
-// reproduces that length, not the pre-curve linear guess.
-const REF_SCALE: Record<Instrument, { attackMax: number; decayMax: number; decayExponent: number }> = {
-  '808': { attackMax: 0.04, decayMax: 3, decayExponent: 1 },
-  kick: { attackMax: 0.02, decayMax: 0.6, decayExponent: 1 },
-  hihat: { attackMax: 0.01, decayMax: 0.55, decayExponent: 3 },
-  snare: { attackMax: 0.015, decayMax: 0.42, decayExponent: 2 },
+// Match each voice's maximum attack time; decay uses the shared logarithmic map.
+const REF_SCALE: Record<Instrument, { attackMax: number }> = {
+  '808': { attackMax: 0.035 },
+  kick: { attackMax: 0.025 },
+  hihat: { attackMax: 0.014 },
+  snare: { attackMax: 0.018 },
 };
 
 const RECIPE_FACTORY = {
@@ -45,6 +42,7 @@ function applyDelta(base: number, delta: number | undefined): number {
 const PARAM_KEYS: (keyof CreativeParams)[] = ['attack', 'decay', 'punch', 'tone', 'distortion', 'grit', 'resonance'];
 
 interface CenterResult {
+  character: Character;
   params: CreativeParams;
   basePitchHz: number;
 }
@@ -55,9 +53,10 @@ export function computeCenter(
   prompt: PromptInterpretation | null,
   reference: ReferenceAnalysis | null
 ): CenterResult {
-  let params: CreativeParams = { ...DEFAULT_CREATIVE_PARAMS };
+  const { character } = chooseCharacter(instrument, prompt?.source);
+  let params: CreativeParams = characterParams(character);
   const [pitchMin, pitchMax] = BASE_PITCH_RANGE[instrument];
-  let basePitchHz = pitchMin + (pitchMax - pitchMin) * 0.5;
+  let basePitchHz = character.pitchHz;
 
   if (prompt) {
     const next = { ...params };
@@ -71,8 +70,8 @@ export function computeCenter(
     const blend = 0.45; // reference nudges the center; doesn't fully override intent
 
     const refAttack = clamp(1 - reference.attackSec / scale.attackMax, 0, 1);
-    const refDecayLinear = clamp(reference.decaySec / scale.decayMax, 0, 1);
-    const refDecay = Math.pow(refDecayLinear, 1 / scale.decayExponent);
+    // Analysis measures -20dB, whereas synthesis decay specifies -60dB.
+    const refDecay = decayParam(instrument, reference.decaySec * 3);
     // Map spectral centroid ~500Hz..9000Hz to 0..1 brightness.
     const refTone = clamp((reference.spectralCentroidHz - 500) / (9000 - 500), 0, 1);
 
@@ -90,10 +89,11 @@ export function computeCenter(
   }
 
   const clamped = { ...params };
+  if (prompt?.decaySeconds !== undefined) clamped.decay = decayParam(instrument, prompt.decaySeconds);
   if (prompt?.absolutePitchHz && instrument !== 'hihat') basePitchHz = clamp(prompt.absolutePitchHz, 25, 1000);
-  for (const key of PARAM_KEYS) clamped[key] = clamp(params[key], 0, 1);
+  for (const key of PARAM_KEYS) clamped[key] = clamp(clamped[key], 0, 1);
 
-  return { params: clamped, basePitchHz };
+  return { params: clamped, basePitchHz, character };
 }
 
 // Each of the 3 slots is deliberately pulled toward a different corner of the
@@ -108,7 +108,6 @@ const SLOT_BIAS: (Record<keyof CreativeParams, number> & { pitchSemi: number })[
 ];
 
 const JITTER = 0.045;
-const PITCH_JITTER_SEMITONES = 1.8;
 
 /** Produces 3 distinct-but-related recipes around a center point, seeded for reproducibility. */
 export function generateVariations(
@@ -124,7 +123,8 @@ export function generateVariations(
   // Scales how far the biased slots spread apart this generation, so back-to-back
   // regenerations don't all feel identically "wide."
   const spreadScale = randRange(rng, 0.75, 1.35);
-  const pitchSpreadScale = randRange(rng, 0.7, 1.5);
+  // Reserve the old pitch RNG draw to retain seeded variation identities.
+  rng();
 
   return [0, 1, 2].map((i) => {
     const variationSeed = Math.floor(rng() * 2 ** 31) ^ (regenSeed + i * 7919);
@@ -153,12 +153,12 @@ export function generateVariations(
     // Stable tuning across the audition set; shape is what varies.
     const basePitchHz = center.basePitchHz;
 
-    return factory(variationSeed, basePitchHz, params);
+    return { ...factory(variationSeed, basePitchHz, params), character: center.character.id };
   });
 }
 
 /** Non-destructive refinement: same seed/instrument/basePitch, only creative params change. */
 export function refineRecipe(recipe: SoundRecipe, params: CreativeParams): SoundRecipe {
   const factory = RECIPE_FACTORY[recipe.instrument];
-  return factory(recipe.seed, recipe.basePitchHz, params);
+  return { ...factory(recipe.seed, recipe.basePitchHz, params), character: recipe.character };
 }

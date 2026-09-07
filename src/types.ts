@@ -43,6 +43,8 @@ export const DEFAULT_CREATIVE_PARAMS: CreativeParams = {
  * creative params that are safe to tweak live.
  */
 export interface SoundRecipe {
+  character?: string;
+  engineVersion?: number;
   id: string;
   instrument: Instrument;
   seed: number;
@@ -77,6 +79,8 @@ export interface ReferenceAnalysis {
 }
 
 export interface PromptInterpretation {
+  source?: string;
+  decaySeconds?: number;
   absolutePitchHz?: number;
   /** Deltas in -1..1 applied on top of CreativeParams defaults. */
   deltas: Partial<CreativeParams>;
