@@ -13,6 +13,8 @@ const prompts = [
   ['snare', 'Dry rimshot snare'],
   ['snare', 'Layered clap snare with a wide tail'],
   ['snare', 'Full body warm snare'],
+  ['808', 'Spinz 808 in F1'],
+  ['808', 'Zay 808 in F1'],
 ];
 
 test('contrasting prompts produce distinct envelopes and spectra', async ({ page }) => {
@@ -76,4 +78,48 @@ test('contrasting prompts produce distinct envelopes and spectra', async ({ page
   expect(results[5].centroid).toBeGreaterThan(results[4].centroid * 1.5);
   expect(results[7].energy95).toBeGreaterThan(results[6].energy95 * 3);
   expect(results[9].energy95).toBeGreaterThan(results[8].energy95 * 1.5);
+  expect(results[11].character).toBe('808-punch');
+  expect(results[12].character).toBe('808-zay');
+  for (const i of [11,12]) {
+    expect(results[i].energy95).toBeGreaterThan(.25);
+    expect(results[i].rms).toBeGreaterThan(.25);
+  }
+  expect(Math.abs(results[11].centroid-results[12].centroid)).toBeGreaterThan(15);
+});
+
+test('all voice families stay usable and deterministic at refinement extremes', async ({page}) => {
+  await page.goto('http://127.0.0.1:5173');
+  const results = await page.evaluate(async () => {
+    const load = (p:string) => import(/* @vite-ignore */ p);
+    const {CHARACTERS,characterParams} = await load('/src/audio/characters.ts');
+    const {voiceRecipe} = await load('/src/audio/synthesis/voices.ts');
+    const {renderRecipe} = await load('/src/audio/synthesis/index.ts');
+    const {interpretPrompt} = await load('/src/audio/promptParser.ts');
+    const failures:string[] = [];
+    for (const c of CHARACTERS) {
+      for (const setting of ['default','short-dark','long-bright']) {
+        const params = characterParams(c);
+        if (setting !== 'default') Object.assign(params, {
+          attack:setting==='short-dark'?1:0,
+          decay:setting==='short-dark'?0:1,
+          tone:setting==='short-dark'?0:1,
+          distortion:setting==='short-dark'?0:1,
+        });
+        const recipe = {...voiceRecipe(c.instrument,117,c.pitchHz,params),character:c.id};
+        const buffer = await renderRecipe(recipe), data=buffer.getChannelData(0);
+        const peak=data.reduce((a:number,b:number)=>Math.max(a,Math.abs(b)),0);
+        const rms=Math.sqrt(data.reduce((a:number,b:number)=>a+b*b,0)/data.length);
+        if (!data.every((x:number)=>Number.isFinite(x)) || peak>.951 || peak<.3 || rms<.035 || data[0]!==0 || data[data.length-1]!==0) failures.push(c.id+':'+setting);
+        if (setting==='default') {
+          const again=(await renderRecipe(recipe)).getChannelData(0);
+          if (again.length!==data.length || !data.every((x:number,i:number)=>Math.abs(x-again[i])<1e-5)) failures.push(c.id+':nondeterministic');
+        }
+      }
+    }
+    const short=interpretPrompt('short').deltas.decay;
+    if (interpretPrompt('short tight quick').deltas.decay!==short) failures.push('synonym pile-up');
+    if (interpretPrompt('clipped').deltas.decay!==undefined) failures.push('clipping shortened envelope');
+    return failures;
+  });
+  expect(results).toEqual([]);
 });

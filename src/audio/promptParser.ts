@@ -96,7 +96,7 @@ const LEXICON: Record<string, LexEntry> = {
   'no tail': { deltas: { decay: -0.5 } },
 
   // ---- distortion / grit -----------------------------------------------
-  clipped: { deltas: { decay: -0.25, distortion: 0.3 } },
+  clipped: { deltas: { distortion: 0.3 } },
   distorted: { deltas: { distortion: 0.5 } },
   dirty: { deltas: { distortion: 0.35, grit: 0.25 } },
   gritty: { deltas: { grit: 0.4, distortion: 0.15 } },
@@ -200,6 +200,7 @@ function tokenize(prompt: string): string[] {
 export function interpretPrompt(prompt: string): PromptInterpretation {
   const words = tokenize(prompt);
   const deltas: Delta = {};
+  const positive: Delta = {}, negative: Delta = {};
   let pitchBiasSemitones = 0;
   const matchedTokens: string[] = [];
 
@@ -244,7 +245,11 @@ export function interpretPrompt(prompt: string): PromptInterpretation {
       const factor = pendingMultiplier * pendingNegate;
       for (const [key, value] of Object.entries(matched.deltas)) {
         const k = key as keyof CreativeParams;
-        deltas[k] = (deltas[k] ?? 0) + value! * factor;
+        // Synonyms reinforce intent without collapsing a preset to a slider extreme.
+        const delta = value! * factor;
+        positive[k] = Math.max(positive[k] ?? 0, delta);
+        negative[k] = Math.min(negative[k] ?? 0, delta);
+        deltas[k] = positive[k]! + negative[k]!;
       }
       if (matched.pitch) pitchBiasSemitones += matched.pitch * factor;
       i += matchLen;

@@ -63,10 +63,6 @@ export default function SoundSculpture(props: Props) {
     let frame = 0, last = 0, time = 0, energy = 0, slowFrames = 0;
     let inView = true, lastState: Props | null = null;
     let samples = new Float32Array(2048);
-    const pointer = { x: 0, y: 0 };
-    const move = (e: PointerEvent) => { const r = host.getBoundingClientRect(); pointer.x = (e.clientX - r.left) / r.width - .5; pointer.y = (e.clientY - r.top) / r.height - .5; };
-    const leave = () => { pointer.x = 0; pointer.y = 0; };
-    host.addEventListener('pointermove', move); host.addEventListener('pointerleave', leave);
     const render = (now: number) => {
       frame = requestAnimationFrame(render);
       if (document.hidden || !inView) { last = now; return; }
@@ -93,7 +89,8 @@ export default function SoundSculpture(props: Props) {
       energy += (target - energy) * (1 - Math.exp(-dt / (target > energy ? .018 : .2)));
       const pulse = animate ? energy * .19 + (generating ? .04 * Math.sin(time * 9) : 0) : 0;
       const shape = instrument === 'hihat' ? .57 : instrument === 'snare' ? .8 : 1;
-      assembly.rotation.set(.35 + (animate ? Math.sin(time * .55) * .28 + pointer.y * .35 + energy * .18 : 0), -.48 + (animate ? Math.sin(time * .4) * .48 + pointer.x * .55 : 0), -.24 + (animate ? time * .16 : 0));
+      // A continuous, autonomous idle. Pointer movement never changes the pose.
+      assembly.rotation.set(.35 + (animate ? Math.sin(time * .55) * .28 + energy * .18 : 0), -.48 + (animate ? Math.sin(time * .4) * .48 : 0), -.24 + (animate ? time * .16 : 0));
       assembly.scale.setScalar(1 + pulse);
       body.scale.z = shape + params.decay * .12 + pulse * .8;
       inset.rotation.y = animate ? Math.sin(time * .8) * .4 + energy * .3 : 0;
@@ -108,7 +105,7 @@ export default function SoundSculpture(props: Props) {
     const lost = (e: Event) => { e.preventDefault(); setUnavailable(true); cancelAnimationFrame(frame); };
     renderer.domElement.addEventListener('webglcontextlost', lost);
     return () => {
-      cancelAnimationFrame(frame); observer.disconnect(); intersection.disconnect(); host.removeEventListener('pointermove', move); host.removeEventListener('pointerleave', leave);
+      cancelAnimationFrame(frame); observer.disconnect(); intersection.disconnect();
       reduced.removeEventListener('change', motionChange);
       renderer.domElement.removeEventListener('webglcontextlost', lost);
       geometry.dispose(); rimGeometry.dispose(); insetGeometry.dispose(); backGeometry.dispose(); material.dispose(); rimMaterial.dispose(); env.dispose(); renderer.dispose(); renderer.domElement.remove();

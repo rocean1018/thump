@@ -8,7 +8,9 @@ Everything happens in the browser: prompt interpretation, sound synthesis, refer
 
 ### Studio update
 
-- Real Three.js chrome resonator with locally generated studio lighting, pointer movement, and animation driven by the actual playback signal. Motion can be paused and respects reduced-motion preferences.
+- Real Three.js chrome resonator with continuous autonomous idle motion and animation driven by the actual playback signal. No mouse tracking. Motion can be paused and respects reduced-motion preferences.
+- Seventeen original voice families, including distinct Spinz-inspired punch and Zay-inspired growl (not sample replicas). Band-limited harmonic layers, a clean bass foundation, weighted body/release envelopes, kick knock, hat contact, and snare wire/shell layers.
+- Repeated descriptive synonyms do not pile up into extreme settings; “clipped” changes drive without unexpectedly shortening the sound.
 - Three controlled takes: Original follows the prompt center, Tighter and Fuller explore nearby settings without random pitch drift.
 - Corrected attack direction, gentler saturation, more distinct kick transients, improved 808 pitch envelopes, and independent seeded snare layers.
 - Note prompts such as `F1`, plus a ±12-semitone pitch control. “No distortion,” “less distorted,” and “no tail” are recognized.

@@ -12,13 +12,13 @@ import Icon from './components/Icon';
 
 const SoundSculpture = lazy(() => import('./components/SoundSculpture'));
 const EXAMPLES: Record<Instrument, string[]> = {
-  '808': ['Pure sine sub in F1, sustained, clean, no punch', 'Short clipped punchy 808 in F1', 'Reese 808, detuned and growling, long, F1'],
+  '808': ['Spinz 808 in F1, punchy', 'Zay 808 in F1, warm growl', 'Pure sine sub in F1, sustained, clean, no punch'],
   kick: ['Deep round kick with a soft attack', 'Clicky tight kick with a hard attack', 'Hard clipped distorted kick'],
   hihat: ['Crisp closed hat, short and clean', 'Airy open hat with a long tail', 'Dark, dusty Memphis hat'],
   snare: ['Dry rimshot snare', 'Layered clap snare with a long tail', 'Full body warm snare'],
 };
 const EXAMPLE_LABELS: Record<Instrument, string[]> = {
-  '808': ['Pure sub', 'Clipped punch', 'Reese'],
+  '808': ['Spinz-inspired', 'Zay-inspired', 'Pure sub'],
   kick: ['Round', 'Click', 'Clipped'],
   hihat: ['Closed', 'Open', 'Dusty'],
   snare: ['Rimshot', 'Clap', 'Full body'],

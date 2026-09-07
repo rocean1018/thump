@@ -37,6 +37,18 @@ Fixed-seed audio comparisons: the revised rimshot's 95%-energy time is 11.5ms ve
 
 ## Open questions / limits
 
+### Follow-up: body and transient quality (engine v3)
+
+The user's listening feedback showed that family separation alone was insufficient. The previous single exponential envelopes produced thin results: the click-kick test placed 95% of its energy within 9.2ms and the body snare within 32ms. Weighted onset/body/release envelopes now retain energy through the middle of the one-shot, without just raising the normalized peak. Those same tests now measure 33.2ms and 54.7ms, respectively. Their full-file RMS rises from .126 to .223 and .107 to .194 at the same .95 peak ceiling. These are density measurements, not a claim of subjective superiority.
+
+Spinz-inspired and Zay-inspired original bass recipes now have separate finite harmonic spectra, a phase-locked sine foundation, and different envelope weights. The generic driven family remains separate. At F1, the named recipes retain 95%-energy durations of .460s and .578s and spectral centroids of 127Hz and 222Hz. No commercial reference samples were obtained or analyzed for this update; these are approximate design interpretations, not verified recreations of a particular kit. [Roland's trap-bass design walkthrough](https://articles.roland.com/sound-design-edm-classics-with-the-system-8/) supports the underlying sub-plus-coloration approach, not the named recipes' exact settings.
+
+Kicks receive a stronger damped body and less dominant noise click. Hats retain a lower contact band beneath the sizzle. Snares/claps get independently damped shell/wire noise between their pitched body and bright tail. Duplicate length adjectives no longer accumulate, and clipping no longer implicitly shortens decay. Reference decay fitting accounts approximately for the new envelope shape.
+
+Six browser tests now cover all 17 families at default and short/dark/long/bright extremes, default determinism, named-family density/separation, the full generation/edit/export workflow, and continuous idle animation with zero sculpture pointer listeners. Pausing and reduced-motion support remain intact.
+
+### Remaining limits
+
 - Procedural aliases such as Spinz or Zay select approximate original families; they are not sample clones.
 - This is deterministic vocabulary/pattern parsing, not a neural text-to-audio model. Artist-only or arbitrary narrative requests may not map.
 - Numeric signal differences do not establish that a producer likes a sound or that it fits a specific record. Producer A/B listening remains the final taste check.

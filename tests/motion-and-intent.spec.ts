@@ -2,8 +2,13 @@ import { test, expect } from '@playwright/test';
 
 test('family feedback matches prompts and 3D renders smoothly, then pauses', async ({ page }) => {
   await page.addInitScript(() => {
-    const stats = { draws: 0, triangles: 0 };
+    const stats = { draws: 0, triangles: 0, pointerListeners: 0 };
     (window as any).__gpu = stats;
+    const listen = EventTarget.prototype.addEventListener;
+    EventTarget.prototype.addEventListener = function(type, listener, options) {
+      if (type === 'pointermove' && this instanceof Element && this.matches('.sculpture-canvas')) stats.pointerListeners++;
+      return listen.call(this, type, listener, options);
+    };
     const prototype = WebGL2RenderingContext.prototype;
     const draw = prototype.drawElements;
     prototype.drawElements = function (mode, count, type, offset) {
@@ -15,6 +20,7 @@ test('family feedback matches prompts and 3D renders smoothly, then pauses', asy
   });
   await page.goto('http://127.0.0.1:5173');
   await expect(page.locator('.sculpture-canvas canvas')).toBeVisible();
+  expect(await page.evaluate(() => (window as any).__gpu.pointerListeners)).toBe(0);
   await page.locator('#sound-prompt').fill('Pure sine sub, clean, long, F1');
   await expect(page.locator('.prompt-interpretation strong')).toHaveText('Pure sub');
   await page.locator('#sound-prompt').fill('Reese 808, detuned growling');

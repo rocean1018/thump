@@ -70,8 +70,12 @@ export function computeCenter(
     const blend = 0.45; // reference nudges the center; doesn't fully override intent
 
     const refAttack = clamp(1 - reference.attackSec / scale.attackMax, 0, 1);
-    // Analysis measures -20dB, whereas synthesis decay specifies -60dB.
-    const refDecay = decayParam(instrument, reference.decaySec * 3);
+    // Approximate the dominant envelope's -20dB crossing. The weighted v3 voices
+    // no longer decay as one exponential, so the old universal x3 over-lengthened them.
+    const weight = character.weight ?? (instrument === '808' ? .58 : instrument === 'kick' ? .32 : instrument === 'hihat' ? (character.id === 'hat-open' ? .3 : .22) : character.clap ? .28 : .2);
+    const crossing = character.id === '808-sub' ? .18 + 1 / 3
+      : .48 + .52 * Math.log(.1 / weight) / Math.log(.001 / weight);
+    const refDecay = decayParam(instrument, reference.decaySec / crossing);
     // Map spectral centroid ~500Hz..9000Hz to 0..1 brightness.
     const refTone = clamp((reference.spectralCentroidHz - 500) / (9000 - 500), 0, 1);
 
