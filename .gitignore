@@ -1,0 +1,6 @@
+.venv/
+.thump_cache/
+library_index.npz
+__pycache__/
+*.py[cod]
+.DS_Store
